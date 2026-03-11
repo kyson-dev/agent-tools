@@ -99,6 +99,22 @@ def get_commit_grouping_signals() -> list[str]:
     except KeyError:
         return []
 
+def get_commit_max_groups() -> int:
+    """Max number of commit groups allowed in a single plan."""
+    rules = load_rules()
+    try:
+        return rules["git"]["commit"]["max_groups"]
+    except KeyError:
+        return 8
+
+def get_diff_max_lines_per_file() -> int:
+    """Max diff lines allowed per individual file."""
+    rules = load_rules()
+    try:
+        return rules["git"]["diff"]["max_diff_lines_per_file"]
+    except KeyError:
+        return 500
+
 def get_diff_max_total_lines() -> int:
     rules = load_rules()
     try:

@@ -2,7 +2,14 @@ import re
 from typing import Tuple
 
 from .client import run_git
-from config import load_rules, get_commit_allowed_types, get_commit_message_regex
+from config import (
+    load_rules,
+    get_commit_allowed_types,
+    get_commit_message_regex,
+    get_commit_subject_max_length,
+    get_commit_body_wrap_length,
+    get_commit_max_groups,
+)
 from .types import GitCommitResult, GitCommandError
 from .transaction import GitTransaction
 
@@ -10,9 +17,16 @@ def validate_plan(plan: dict, rules: dict) -> Tuple[bool, str]:
     """Validates the structure and content of the commit plan against rules.yaml."""
     if "commits" not in plan or not isinstance(plan["commits"], list):
         return False, "Plan must contain a 'commits' array."
-    
+
+    # --- Max groups check ---
+    max_groups = get_commit_max_groups()
+    if len(plan["commits"]) > max_groups:
+        return False, f"Plan contains {len(plan['commits'])} commit groups, max allowed is {max_groups}."
+
     allowed_types = get_commit_allowed_types()
     regex_pattern = get_commit_message_regex()
+    subject_max = get_commit_subject_max_length()
+    body_wrap = get_commit_body_wrap_length()
     
     for idx, commit in enumerate(plan["commits"]):
         if "files" not in commit or not isinstance(commit["files"], list) or len(commit["files"]) == 0:
@@ -21,13 +35,35 @@ def validate_plan(plan: dict, rules: dict) -> Tuple[bool, str]:
              return False, f"Commit at index {idx} must contain a message string."
         
         msg = commit["message"]
-        if regex_pattern and not re.match(regex_pattern, msg):
-            return False, f"Commit message at index {idx} ('{msg}') fails regex validation."
+        lines = msg.split("\n")
+        subject = lines[0]
+
+        # --- Subject length check ---
+        if len(subject) > subject_max:
+            return False, (
+                f"Commit at index {idx}: subject is {len(subject)} chars, "
+                f"max allowed is {subject_max}."
+            )
+
+        # --- Regex validation (subject only) ---
+        if regex_pattern and not re.match(regex_pattern, subject):
+            return False, f"Commit message at index {idx} ('{subject}') fails regex validation."
             
+        # --- Allowed types check (subject only) ---
         if allowed_types:
-            msg_type = msg.split(":")[0].split("(")[0]
+            msg_type = subject.split(":")[0].split("(")[0]
             if msg_type not in allowed_types:
                  return False, f"Commit message at index {idx} uses disallowed type '{msg_type}'."
+
+        # --- Body wrap length check ---
+        # Body starts after the first blank line following the subject
+        body_lines = lines[1:]
+        for line_num, line in enumerate(body_lines):
+            if len(line) > body_wrap:
+                return False, (
+                    f"Commit at index {idx}: body line {line_num + 1} is {len(line)} chars, "
+                    f"max allowed is {body_wrap}."
+                )
                  
     return True, ""
 

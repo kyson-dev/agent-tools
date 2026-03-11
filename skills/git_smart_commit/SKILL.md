@@ -32,8 +32,8 @@ Analyze the JSON response from Step 1.
     1. Extract `details.rules_context` (allowed types, regex, length constraints).
     2. Extract `details.diff_summary`.
     3. Group changed files into atomic logical units based on the `grouping_signals`.
-    4. Draft commit messages for each group that satisfy the regex and length rules.
-    5. Construct a JSON plan in the format: `{"commits": [{"files": ["path/a", "path/b"], "message": "feat: description"}]}`.
+    4. Draft commit messages for each group that satisfy the regex and length rules. Each message SHOULD include a relevant scope and a detailed body.
+    5. Construct a JSON plan in the format: `{"commits": [{"files": ["path/a", "path/b"], "message": "feat(scope): subject\n\nDetailed body explaining what and why."}]}`. The subject and body MUST be separated by `\n\n`.
 
 ### Step 3: Execute the commit plan
 
@@ -58,3 +58,4 @@ Check the final output of the execution.
 - **Branch Protected**: If the sense result reports the branch is protected, do NOT attempt to commit. Advise the user to create a feature branch.
 - **Detached HEAD**: If the sense result reports a detached HEAD, advise the user to checkout a branch first.
 - **Invalid JSON Plan**: If Step 3 returns a JSON parsing error, verify your JSON escaping (especially for nested quotes in commit messages) and retry.
+- **Multiline Message Escaping**: When the message contains newlines, ensure proper JSON string escaping. Use the literal two-character sequence `\n` inside the JSON string value, not actual line breaks.
