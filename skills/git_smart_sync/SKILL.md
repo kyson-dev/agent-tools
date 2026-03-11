@@ -28,32 +28,32 @@ Start the sync pipeline. The orchestrator will check for dirty trees, detached H
 ### Step 2: Handle initialization halts
 
 Check the JSON response from Step 1.
-- If `status` is `success`: (Rare at this stage as it usually falls through) Continue.
-- If `status` is `paused` and `message` says "Working tree is dirty":
+- If `status` is `success`: The branch is already up-to-date and pushed. Stop.
+- If `status` is `handoff` and `next_step` is `clean_worktree`:
     1. Stop this skill.
     2. Invoke the `git_smart_commit` skill to clear changes.
     3. Return to Step 1.
-- If `status` is `paused` and `details.point` is `current_rebase`, `rebase_main`, or `push`: Proceed to the corresponding step below.
+- If `status` is `handoff` and `next_step` is `resolve_conflicts`: Proceed to Step 3.
 
 ### Step 3: Resolve rebase conflicts
 
-The orchestrator executes a linear pipeline: `current_rebase` (upstream) → `rebase_main` (default branch).
-If a conflict occurs, the orchestrator will return `status: "paused"` with a `point` value.
+If a conflict occurs, the orchestrator will return `status: "handoff"` with `next_step: "resolve_conflicts"`.
 
-2. If `status` is `paused` with a `point` (e.g., `current_rebase` or `rebase_main`):
-    1. Read `details.conflicted_files`.
-    2. Use file tools to resolve conflicts in those files.
-    3. Run `git add <file>` for each resolved file.
-    4. Resume the pipeline by running: `agt git sync --point <DETAILS_POINT_VALUE>`.
-    5. Repeat if new conflicts arise at the same or next point.
+2. If `status` is `handoff` and `next_step` is `resolve_conflicts`:
+    1. Read the `instruction` field for guidance.
+    2. Read `details.conflicted_files`.
+    3. Use file tools to resolve conflicts in those files.
+    4. Run `git add <file>` for each resolved file.
+    5. Resume the pipeline by running: `agt git sync --point` followed by the exact value provided in the `resume_point` field.
+    6. Repeat if new conflicts arise.
 
-### Step 4: Push the aligned branch
+### Step 4: Verify alignment and push
 
-Once rebases are complete, the pipeline reaches the `push` stage.
+The orchestrator automatically attempts to push after all rebases are complete.
 
-3. If the orchestrator halts at `point: "push"` (e.g., for manual check), or automatically attempts push:
-    - On `success`: Confirm to the user that the branch is aligned and pushed.
-    - On `error`: Identify if the push was rejected (e.g., remote changes) and follow the error message instruction.
+3. Check the final response:
+    - On `status: "success"`: Confirm to the user that the branch is aligned and pushed.
+    - On `status: "error"` and message mentions push failure: Identify the cause and report it to the user.
 
 ## Acceptance Criteria
 
@@ -63,6 +63,6 @@ Once rebases are complete, the pipeline reaches the `push` stage.
 
 ## Error Handling
 
-- **Abort Operation**: If conflicts are too complex or the user wants to stop, execute `agt git sync --abort`. This safely rolls back the environment.
-- **Merge/Cherry-pick in progress**: If the orchestrator reports an existing merge or cherry-pick, advise the user to finish those operations or abort them before syncing.
-- **Unrecognized Error**: For any terminal error, do NOT retry. Report the `message` and `stderr` to the user.
+- **Abort Operation**: If conflicts are too complex, execute `agt git sync --abort`.
+- **Merge/Cherry-pick in progress**: Finish those operations or abort them before syncing.
+- **Unrecognized Error**: For any terminal error, do NOT retry. Report the `message` to the user.

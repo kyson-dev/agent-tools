@@ -19,7 +19,7 @@ def sense() -> Result:
       2. Owner/repo not parseable from remote URL
       3. No commits ahead of the default branch
 
-    On success, returns `status='paused'` with all context needed for L3 to
+    On success, returns `status='handoff'` with all context needed for L3 to
     synthesize a PR description and invoke mcp_github_create_pull_request.
     """
     try:
@@ -72,17 +72,15 @@ def sense() -> Result:
             )
 
         return Result(
-            status="paused",
+            status="handoff",
             message="PR context extracted. Synthesize a description and call mcp_github_create_pull_request.",
             workflow=WORKFLOW,
+            next_step="create_mcp_pr",
+            resume_point="",  # No resume point for orchestrator; hand off to external tool
+            instruction="1. Read `commits` in `details` and synthesize a concise PR title and body. "
+                    "2. Call the external `mcp_github_create_pull_request` tool using the "
+                    "`owner`, `repo`, `head`, and `base` fields from `details`.",
             details={
-                "next_step": "create_mcp",
-                "instruction": (
-                    "1. Read `commits` and synthesize a concise PR title (Conventional Commits) "
-                    "and a human-readable body (Summary / Changes / Impact). "
-                    "2. Call `mcp_github_create_pull_request` using the provided "
-                    "`owner`, `repo`, `head`, and `base` fields."
-                ),
                 "owner": repo_info.owner,
                 "repo": repo_info.repo,
                 "head": branch_info.current_branch,

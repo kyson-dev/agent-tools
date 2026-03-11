@@ -11,14 +11,13 @@ Collect local repository context (owner, repo, branch, commits) via the L2 orche
 
 ## Constraints
 
-1. Do NOT gather repository metadata manually (e.g., do NOT call `git remote get-url` or `git log` yourself). Use `agt gh pr` to extract context through L2.
-2. NEVER use `gh` CLI commands. Use `mcp_github_*` tools exclusively for GitHub operations.
-3. Do NOT push directly to `main` or `master`. This skill creates a PR — not a direct push.
-4. Do NOT dump raw commit hashes or diffs into the PR body. Synthesize a human-readable description from the `commits` list.
+1. Do NOT gather repository metadata manually. Use `agt gh pr` to extract context.
+2. NEVER use `gh` CLI commands. Use `mcp_github_*` tools exclusively.
+3. Synthesize a human-readable description from the `commits` list.
 
 ## Prerequisites
 
-- Local branch has been synchronized and pushed to the remote repository using `git_smart_sync`.
+- Local branch has been synchronized and pushed using `git_smart_sync`.
 
 ## Steps
 
@@ -30,41 +29,37 @@ Run the L2 orchestrator to perform pre-condition checks and gather all required 
 1. Execute `agt gh pr`.
 
 Check the JSON response:
-- If `status` is `error`: Read the `message`. Common causes: detached HEAD, no remote configured, no commits ahead of base. Resolve the issue and retry.
-- If `status` is `paused`: Extract `details` and proceed to Step 2.
+- If `status` is `error`: Read the `message` and resolve the issue.
+- If `status` is `handoff` and `next_step` is `create_mcp_pr`:
+    1. Note that `resume_point` is empty because this workflow hands off to external tools.
+    2. Read the `instruction` field for the recommended next steps.
+    3. Proceed to Step 2.
 
 ### Step 2: Synthesize PR title and body
 
-Using `details.commits` from Step 1, draft the PR content. Do NOT call any tools in this step.
+Using `details.commits` from Step 1, draft the PR content.
 
-- **Title**: Follow Conventional Commits format using the most significant change (e.g., `feat: add user authentication`).
+- **Title**: Follow Conventional Commits format (e.g., `feat: add user authentication`).
 - **Body**: Write in three sections:
     - **Summary**: 2–3 sentences describing the overall change.
-    - **Changes**: Bulleted list of the specific technical modifications, derived from each commit's `subject` and `body`.
-    - **Impact**: Any side-effects, deployment steps, or breaking changes to be aware of.
+    - **Changes**: Bulleted list of modifications derived from commit history.
+    - **Impact**: Side-effects, deployment steps, or breaking changes.
 
 ### Step 3: Create the Pull Request
 
 Invoke the GitHub MCP tool using the context from `details`.
 
-2. Call `mcp_github_create_pull_request` with:
-    - `owner`: from `details.owner`
-    - `repo`: from `details.repo`
-    - `head`: from `details.head`
-    - `base`: from `details.base`
-    - `title`: synthesized in Step 2
-    - `body`: synthesized in Step 2
+2. Call `mcp_github_create_pull_request` with `owner`, `repo`, `head`, and `base` from `details`, plus your synthesized `title` and `body`.
 
 ## Acceptance Criteria
 
-- `agt gh pr` returns `status: "paused"` with a non-empty `commits` list.
-- The PR is successfully created on GitHub (MCP tool returns a PR URL or number).
-- The PR body is human-readable and accurately reflects the branch changes.
+- Orchestrator returns `status: "handoff"` with a non-empty `commits` list.
+- The PR is successfully created on GitHub via MCP.
+- The PR body accurately reflects the branch changes.
 
 ## Error Handling
 
-- **Detached HEAD**: Checkout a named branch first, then retry Step 1.
-- **No commits ahead of base**: Run `git_smart_sync` to push your commits, then retry.
-- **Remote not configured**: Ensure `origin` is set: `git remote add origin <url>`.
-- **Branch out of date**: If the MCP tool rejects the PR because the branch is behind, run `git_smart_sync` and retry from Step 1.
-- **Permission Denied**: Check write access to the repository. If unavailable, advise the user to create the PR manually.
+- **Detached HEAD**: Checkout a named branch first.
+- **No commits ahead of base**: Run `git_smart_sync` to push commits first.
+- **Remote not configured**: Ensure `origin` is set.
+- **Branch out of date**: Run `git_smart_sync` and retry.

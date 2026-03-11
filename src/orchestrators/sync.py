@@ -41,15 +41,16 @@ def _pause_for_conflict(current_point: str) -> Result:
     """Return a standardized paused Result for rebase conflicts."""
     conflicts_res = run_git(["diff", "--name-only", "--diff-filter=U"])
     return Result(
-        status="paused",
+        status="handoff",
         message="Conflicts detected during rebase.",
         workflow=WORKFLOW,
+        next_step="resolve_conflicts",
+        resume_point=current_point,
+        instruction=f"1. Resolve conflicts in files listed in `details`. "
+                    f"2. Run `git add <file>` for each resolved file. "
+                    f"3. Resume the pipeline by running `agt git sync --point {current_point}`.",
         details={
             "conflicted_files": conflicts_res.stdout.strip().splitlines(),
-            "point": current_point,
-            "instruction": (
-                f"Resolve conflicts, `git add`, then re-run with point='{current_point}'."
-            ),
         },
     )
 
@@ -146,13 +147,12 @@ def run_sync_workflow(
             # 1e. Guard: dirty working tree
             if branch_info.is_dirty:
                 return Result(
-                    status="paused",
+                    status="handoff",
                     message="Working tree is dirty. Commit changes first.",
                     workflow=WORKFLOW,
-                    details={
-                        "point": "init",
-                        "instruction": "Run the commit skill, then re-run sync.",
-                    },
+                    next_step="clean_worktree",
+                    resume_point="init",
+                    instruction="Run the 'git_smart_commit' skill to clear changes, then re-run sync with `--point init`.",
                 )
 
             # 1f. Guard: no remote configured

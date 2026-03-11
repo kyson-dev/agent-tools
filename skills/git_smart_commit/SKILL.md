@@ -13,7 +13,7 @@ Identify semantic changes in the working tree and execute one or more structured
 
 1. Do NOT use `git commit` directly. Do NOT use `git add` unless explicitly instructed by the orchestrator's `instruction` field. The orchestrator handles staging internally.
 2. Do NOT bypass the plan-execute two-phase process.
-3. Commit messages MUST strictly follow the `message_regex` and `subject_max_length` provided in the sense response.
+3. Commit messages MUST strictly follow the `message_regex` and `subject_max_length` provided in the response.
 
 ## Steps
 
@@ -28,18 +28,20 @@ Run the orchestrator in sense mode to scan the repository and retrieve configura
 
 Analyze the JSON response from Step 1.
 - If `status` is `success` and `changed_files` is empty: Report "No changes to commit" and stop.
-- If `status` is `paused`:
-    1. Extract `details.rules_context` (allowed types, regex, length constraints).
-    2. Extract `details.diff_summary`.
-    3. Group changed files into atomic logical units based on the `grouping_signals`.
-    4. Draft commit messages for each group that satisfy the regex and length rules. Each message SHOULD include a relevant scope and a detailed body.
-    5. Construct a JSON plan in the format: `{"commits": [{"files": ["path/a", "path/b"], "message": "feat(scope): subject\n\nDetailed body explaining what and why."}]}`. The subject and body MUST be separated by `\n\n`.
+- If `status` is `handoff` and `next_step` is `build_plan`:
+    1. Read the `instruction` field for the immediate task guidance.
+    2. Extract `details.rules_context` (allowed types, regex, length constraints).
+    3. Extract `details.diff_summary`.
+    4. Group changed files into atomic logical units based on the `grouping_signals`.
+    5. Draft commit messages for each group that satisfy the regex and length rules.
+    6. Construct a JSON plan in the format: `{"commits": [{"files": ["path/a", "path/b"], "message": "feat(scope): subject\n\nDetailed body explaining what and why."}]}`. The subject and body MUST be separated by `\n\n`.
 
 ### Step 3: Execute the commit plan
 
-Transmit the drafted plan back to the orchestrator for atomic execution.
+Transmit the drafted plan back to the orchestrator for atomic execution. Use the `resume_point` value (usually "plan") as the mode/parameter.
 
-2. Execute `agt git commit --plan '<YOUR_PLAN_JSON_STRING>'`.
+2. Execute `agt git commit --<RESUME_POINT> '<YOUR_PLAN_JSON_STRING>'`.
+   *(Example: `agt git commit --plan '...'`)*
 
 ### Step 4: Verify execution result
 
@@ -50,12 +52,11 @@ Check the final output of the execution.
 ## Acceptance Criteria
 
 - All successfully committed changes appear in `git log`.
-- Commits are atomic and follow the conventional commit format defined in `rules.yaml`.
+- Commits are atomic and follow the conventional commit format.
 - The orchestrator returns `status: "success"`.
 
 ## Error Handling
 
-- **Branch Protected**: If the sense result reports the branch is protected, do NOT attempt to commit. Advise the user to create a feature branch.
-- **Detached HEAD**: If the sense result reports a detached HEAD, advise the user to checkout a branch first.
-- **Invalid JSON Plan**: If Step 3 returns a JSON parsing error, verify your JSON escaping (especially for nested quotes in commit messages) and retry.
-- **Multiline Message Escaping**: When the message contains newlines, ensure proper JSON string escaping. Use the literal two-character sequence `\n` inside the JSON string value, not actual line breaks.
+- **Branch Protected**: If the result reports the branch is protected, do NOT attempt to commit. Advise the user to create a feature branch.
+- **Detached HEAD**: If the result reports a detached HEAD, advise the user to checkout a branch first.
+- **Invalid JSON Plan**: If Step 3 returns a JSON parsing error, verify your JSON escaping (especially for nested quotes) and retry.

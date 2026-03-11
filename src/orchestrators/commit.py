@@ -29,7 +29,7 @@ def _check_preconditions() -> Optional[Result]:
     
     Returns a Result if a guard fails, otherwise None (all clear).
     """
-    branch_info = get_branch_context(refresh=True)
+    branch_info = get_branch_context()
 
     # Guard: detached HEAD
     if branch_info.is_detached:
@@ -89,17 +89,20 @@ def sense() -> Result:
         }
 
         return Result(
-            status="paused",
+            status="handoff",
             message="Ready to build commit plan.",
             workflow=WORKFLOW,
+            next_step="build_plan",
+            resume_point="plan",
+            instruction="1. Read `details` to understand changed files and project rules. "
+                    "2. Construct a valid JSON commit plan. "
+                    "3. Execute 'agt git commit --plan <PLAN_JSON>' to apply changes.",
             details={
                 "changed_files": [asdict(f) for f in changed_files],
                 "diff_summary": diff_info.diff_summary,
                 "branch_info": asdict(branch_info),
                 "repo_context": asdict(repo_info),
                 "rules_context": rules_context,
-                "next_step": "plan",
-                "instruction": "Please review the changes and provide a structured JSON commit plan.",
             },
         )
 
