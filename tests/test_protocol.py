@@ -10,7 +10,7 @@ def test_result_error():
 
 def test_result_to_json():
     import json
-    r = Result(status="paused", message="waiting", skill="test", details={"k": "v"})
+    r = Result(status="paused", message="waiting", workflow="test", details={"k": "v"})
     data = json.loads(r.to_json())
     assert data["status"] == "paused"
-    assert data["skill"] == "test"
+    assert data["workflow"] == "test"

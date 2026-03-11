@@ -190,13 +190,16 @@ def run_sync_workflow(
                 if not res.ok:
                     return _pause_for_conflict("rebase_main")
             else:
+                # current branch is same default branch
+                branch_info = get_branch_context()
                 repo_info = get_repo_context()
-                remote = repo_info.primary_remote or "origin"
-                target = f"{remote}/{repo_info.default_branch}"
-                res = run_git(["rebase", target])
-                if not res.ok:
-                    return _pause_for_conflict("rebase_main")
-
+                if branch_info.current_branch != repo_info.default_branch:
+                    remote = repo_info.primary_remote or "origin"
+                    target = f"{remote}/{repo_info.default_branch}"
+                    res = run_git(["rebase", target])
+                    if not res.ok:
+                        return _pause_for_conflict("rebase_main")
+                
             point = "push"  # fall through
 
         # ====== Stage 4: Push ======
