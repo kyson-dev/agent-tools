@@ -1,0 +1,68 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+        "version": {
+            "type": "integer"
+        },
+        "git": {
+            "type": "object",
+            "properties": {
+                "commit": {
+                    "type": "object",
+                    "properties": {
+                        "allowed_types": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "subject_max_length": {
+                            "type": "integer"
+                        },
+                        "body_wrap_length": {
+                            "type": "integer"
+                        },
+                        "message_regex": {
+                            "type": "string"
+                        },
+                        "max_groups": {
+                            "type": "integer"
+                        },
+                        "grouping_signals": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "safety": {
+                    "type": "object",
+                    "properties": {
+                        "protected_branches": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "allow_direct_actions_to_protected": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "diff": {
+                    "type": "object",
+                    "properties": {
+                        "max_diff_lines_per_file": {
+                            "type": "integer"
+                        },
+                        "max_total_diff_lines": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
