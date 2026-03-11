@@ -11,9 +11,10 @@ Collect local repository context (owner, repo, branch, commits) via the L2 orche
 
 ## Constraints
 
-1. Do NOT gather repository metadata manually. Use `agt gh pr` to extract context.
+1. Do NOT gather repository metadata manually (e.g., do NOT call `git remote get-url` or `git log` yourself). Use `agt gh pr` to extract context.
 2. NEVER use `gh` CLI commands. Use `mcp_github_*` tools exclusively.
-3. Synthesize a human-readable description from the `commits` list.
+3. Do NOT push directly to `main` or `master`. This skill creates a PR — not a direct push.
+4. Do NOT dump raw commit hashes or diffs into the PR body. Synthesize a human-readable description from the `commits` list.
 
 ## Prerequisites
 
@@ -42,8 +43,8 @@ Using `details.commits` from Step 1, draft the PR content.
 - **Title**: Follow Conventional Commits format (e.g., `feat: add user authentication`).
 - **Body**: Write in three sections:
     - **Summary**: 2–3 sentences describing the overall change.
-    - **Changes**: Bulleted list of modifications derived from commit history.
-    - **Impact**: Side-effects, deployment steps, or breaking changes.
+    - **Changes**: Bulleted list of the specific technical modifications, derived from each commit's `subject` and `body`.
+    - **Impact**: Any side-effects, deployment steps, or breaking changes to be aware of.
 
 ### Step 3: Create the Pull Request
 
@@ -59,7 +60,8 @@ Invoke the GitHub MCP tool using the context from `details`.
 
 ## Error Handling
 
-- **Detached HEAD**: Checkout a named branch first.
-- **No commits ahead of base**: Run `git_smart_sync` to push commits first.
-- **Remote not configured**: Ensure `origin` is set.
-- **Branch out of date**: Run `git_smart_sync` and retry.
+- **Detached HEAD**: Checkout a named branch first, then retry Step 1.
+- **No commits ahead of base**: Run `git_smart_sync` to push your commits, then retry.
+- **Remote not configured**: Ensure `origin` is set: `git remote add origin <url>`.
+- **Branch out of date**: If the MCP tool rejects the PR because the branch is behind, run `git_smart_sync` and retry from Step 1.
+- **Permission Denied**: Check write access to the repository. If unavailable, advise the user to create the PR manually.
