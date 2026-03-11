@@ -33,7 +33,7 @@ Analyze the JSON response from Step 1.
     2. Extract `details.rules_context` (allowed types, regex, length constraints).
     3. Extract `details.diff_summary`.
     4. Group changed files into atomic logical units based on the `grouping_signals`.
-    5. Draft commit messages for each group that satisfy the regex and length rules.
+    5. Draft commit messages for each group that satisfy the regex and length rules. Each message SHOULD include a relevant scope and a detailed body.
     6. Construct a JSON plan in the format: `{"commits": [{"files": ["path/a", "path/b"], "message": "feat(scope): subject\n\nDetailed body explaining what and why."}]}`. The subject and body MUST be separated by `\n\n`.
 
 ### Step 3: Execute the commit plan
