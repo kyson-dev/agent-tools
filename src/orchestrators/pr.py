@@ -33,7 +33,7 @@ def sense() -> Result:
                 workflow=WORKFLOW,
             )
 
-        repo_info = get_repo_context()
+        repo_info = get_repo_context(refresh=True)
 
         # Guard 2: Remote not configured / owner+repo not parseable
         if not repo_info.owner or not repo_info.repo:
@@ -47,7 +47,20 @@ def sense() -> Result:
 
         base = repo_info.default_branch
 
-        # Guard 3: No commits ahead of base
+        # Guard 3: Base branch unknown
+        if not base:
+            return Result(
+                status="error",
+                message=(
+                    "Unable to determine the base branch. "
+                    "Run `git_smart_sync` to push your branch and set up tracking, "
+                    "then retry."
+                ),
+                workflow=WORKFLOW,
+                details={"head": branch_info.current_branch},
+            )
+
+        # Guard 4: No commits ahead of base
         commits = get_commits_ahead(base)
         if not commits:
             return Result(

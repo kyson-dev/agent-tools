@@ -47,7 +47,7 @@ class RepoContext:
     remote_url: Optional[str]
     owner: Optional[str]
     repo: Optional[str]
-    default_branch: str
+    default_branch: Optional[str]
     all_remotes: List[str]
 
 @dataclass

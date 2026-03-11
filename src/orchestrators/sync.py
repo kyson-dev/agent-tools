@@ -156,7 +156,7 @@ def run_sync_workflow(
                 )
 
             # 1f. Guard: no remote configured
-            repo_info = get_repo_context()
+            repo_info = get_repo_context(refresh=True)
             if not repo_info.primary_remote:
                 return Result(
                     status="error",
@@ -190,16 +190,23 @@ def run_sync_workflow(
                 if not res.ok:
                     return _pause_for_conflict("rebase_main")
             else:
-                # current branch is same default branch
                 branch_info = get_branch_context()
                 repo_info = get_repo_context()
-                if branch_info.current_branch != repo_info.default_branch:
-                    remote = repo_info.primary_remote or "origin"
+
+                # Skip if default branch is unknown (e.g. fresh remote with no branches yet)
+                if not repo_info.default_branch or not repo_info.primary_remote:
+                    pass    
+                # Skip if current branch is the default branch
+                elif branch_info.current_branch == repo_info.default_branch:
+                    pass
+                # Rebase onto default branch
+                else:
+                    remote = repo_info.primary_remote
                     target = f"{remote}/{repo_info.default_branch}"
                     res = run_git(["rebase", target])
                     if not res.ok:
                         return _pause_for_conflict("rebase_main")
-                
+
             point = "push"  # fall through
 
         # ====== Stage 4: Push ======

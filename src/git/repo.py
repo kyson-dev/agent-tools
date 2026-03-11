@@ -26,8 +26,11 @@ def parse_remote_url(url: str):
     return None, None
 
 
-def get_repo_context() -> RepoContext:
+def get_repo_context(refresh: bool = False) -> RepoContext:
     """Returns repository-wide metadata.
+
+    Args:
+        refresh: If True, syncs remote HEAD pointer with origin.
 
     Raises:
         GitCommandError: if any required git command fails (fail-fast).
@@ -42,6 +45,11 @@ def get_repo_context() -> RepoContext:
     primary_remote = None
     if remote_names:
         primary_remote = "origin" if "origin" in remote_names else remote_names[0]
+
+    # --- Optional Metadata Refresh ---
+    if refresh and primary_remote:
+        # Sync remote HEAD branch setting
+        run_git(["remote", "set-head", primary_remote, "-a"])
 
     remote_url = None
     owner = None
@@ -76,6 +84,6 @@ def get_repo_context() -> RepoContext:
         remote_url=remote_url,
         owner=owner,
         repo=repo_name,
-        default_branch=default_branch or "main",
+        default_branch=default_branch,  # None if it can't be determined
         all_remotes=remote_names,
     )
