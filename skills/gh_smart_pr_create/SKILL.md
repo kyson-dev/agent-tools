@@ -31,10 +31,8 @@ Run the L2 orchestrator to perform pre-condition checks and gather all required 
 
 Check the JSON response:
 - If `status` is `error`: Read the `message` and resolve the issue.
-- If `status` is `handoff` and `next_step` is `create_mcp_pr`:
-    1. Note that `resume_point` is empty because this workflow hands off to external tools.
-    2. Read the `instruction` field for the recommended next steps.
-    3. Proceed to Step 2.
+- If `status` is `handoff` and `resume_point` is `create`:
+    1. Proceed to Step 2.
 
 ### Step 2: Synthesize PR title and body
 
@@ -43,19 +41,31 @@ Using `details.commits` from Step 1, draft the PR content.
 - **Title**: Follow Conventional Commits format (e.g., `feat: add user authentication`).
 - **Body**: Write in three sections:
     - **Summary**: 2–3 sentences describing the overall change.
-    - **Changes**: Bulleted list of the specific technical modifications, derived from each commit's `subject` and `body`.
-    - **Impact**: Any side-effects, deployment steps, or breaking changes to be aware of.
+    - **Changes**: Bulleted list of the specific technical modifications.
+    - **Impact**: Any side-effects or breaking changes.
 
-### Step 3: Create the Pull Request
+### Step 3: Generate Create Plan
 
-Invoke the GitHub MCP tool using the context from `details`.
+Send the synthesized description back to the orchestrator to generate a rigid execution plan.
 
-2. Call `mcp_github_create_pull_request` with `owner`, `repo`, `head`, and `base` from `details`, plus your synthesized `title` and `body`.
+// turbo
+2. Execute `agt gh pr --create '{"title": "...", "body": "..."}'` using your synthesized content.
+
+Check the JSON response:
+- If `status` is `handoff`:
+    1. Read the `instruction` field. It contains the exact `mcp_github_create_pull_request` call to make.
+    2. Proceed to Step 4.
+
+### Step 4: Execute the GitHub MCP Call
+
+Invoke the GitHub MCP tool using the EXACT parameters provided in the Step 3 instruction.
+
+3. Call `mcp_github_create_pull_request` as instructed.
 
 ## Acceptance Criteria
 
-- Orchestrator returns `status: "handoff"` with a non-empty `commits` list.
-- The PR is successfully created on GitHub via MCP.
+- Orchestrator return `status: "handoff"` with `resume_point: "create"`.
+- The final PR is successfully created on GitHub via MCP.
 - The PR body accurately reflects the branch changes.
 
 ## Error Handling
