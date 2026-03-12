@@ -118,6 +118,7 @@ def verdict(data: Dict[Any, Any]) -> Result:
     reviews = data.get("reviews", []) # Fresh Reviews from L3/MCP
     
     number = pr.get("number")
+    pr_owner = pr.get("user", {}).get("login")
     repo_owner = pr.get("base", {}).get("repo", {}).get("owner", {}).get("login")
     repo_name = pr.get("base", {}).get("repo", {}).get("name")
     
@@ -126,13 +127,16 @@ def verdict(data: Dict[Any, Any]) -> Result:
     if changes_requested:
         return Result(status="error", message=f"Last-minute audit: PR #{number} has active 'Changes Requested' reviews. Merge aborted.", workflow=WORKFLOW)
     
-    if ci_state and ci_state != "success":
-        if ci_state == "pending":
-            return Result(status="error", message=f"Last-minute audit: PR #{number} CI is still PENDING. Please wait.", workflow=WORKFLOW)
-        elif ci_state in ["failure", "error"]:
-            return Result(status="error", message=f"PR #{number} CI has FAILED ({ci_state}). Author @{pr_owner} must fix test failures.", workflow=WORKFLOW)
-        else:
-            return Result(status="error", message=f"Last-minute audit: PR #{number} CI status is currently '{ci_state}'.", workflow=WORKFLOW)
+    # Safety Audit 2: CI Status check (only if status data is available)
+    if status:
+        ci_state = status.get("state")
+        if ci_state and ci_state != "success":
+            if ci_state == "pending":
+                return Result(status="error", message=f"Last-minute audit: PR #{number} CI is still PENDING. Please wait.", workflow=WORKFLOW)
+            elif ci_state in ["failure", "error"]:
+                return Result(status="error", message=f"PR #{number} CI has FAILED ({ci_state}). Author @{pr_owner} must fix test failures.", workflow=WORKFLOW)
+            else:
+                return Result(status="error", message=f"Last-minute audit: PR #{number} CI status is currently '{ci_state}'.", workflow=WORKFLOW)
 
     # Safety Audit 3: Missing Approvals Check
     # If GitHub says 'blocked' but CI is successful and there are no requested changes,

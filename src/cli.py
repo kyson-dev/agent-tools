@@ -90,10 +90,7 @@ def main():
                 execute_and_exit(
                     run_pr_merge_workflow, 
                     mode=args.mode, 
-                    data_json=args.data,
-                    pr_number=args.pr,
-                    branch_name=args.branch,
-                    repo_slug=args.repo
+                    data_json=args.data
                 )
 
     except SystemExit:
