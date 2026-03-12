@@ -37,7 +37,6 @@ Check the JSON response from Step 1.
 
 ### Step 3: Resolve rebase conflicts
 
-The orchestrator executes a linear pipeline: `current_rebase` (upstream) → `rebase_main` (default branch).
 If a conflict occurs, the orchestrator will return `status: "handoff"` with `next_step: "resolve_conflicts"`.
 
 2. If `status` is `handoff` and `next_step` is `resolve_conflicts`:
