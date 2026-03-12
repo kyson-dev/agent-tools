@@ -8,6 +8,7 @@ from orchestrators import (
     run_pr_create_workflow,
 )
 
+
 def execute_and_exit(func, *args, **kwargs) -> None:
     """Execute a workflow and print its JSON result, then exit with proper return code."""
     try:
