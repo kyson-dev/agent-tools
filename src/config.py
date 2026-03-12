@@ -8,9 +8,9 @@ from jsonschema import validate, ValidationError
 
 def get_base_dir() -> Path:
     """Get the base '.agents' directory."""
-    # This file is in src/agent_tools/config.py
-    # So base dir is 3 levels up
-    return Path(__file__).parent.parent.parent
+    # This file is in src/config.py
+    # So base dir is 2 levels up
+    return Path(__file__).parent.parent
 
 def get_rules_path() -> Path:
     return get_base_dir() / "configs" / "rules.yaml"
