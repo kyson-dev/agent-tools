@@ -1,0 +1,52 @@
+# Centralized Agent Rules and Constraints
+# This file serves as the Single Source of Truth for both L3 Workflows (Prompt Context)
+# and L2 Scripts (Validation Schemas).
+
+version: 2
+
+git:
+  commit:
+    # Allowed Conventional Commits types
+    allowed_types:
+      - feat
+      - fix
+      - docs
+      - style
+      - refactor
+      - perf
+      - test
+      - build
+      - ci
+      - chore
+      - revert
+
+    # Message formatting constraints
+    subject_max_length: 72
+    body_wrap_length: 80
+
+    # Required regex pattern for commit subjects
+    message_regex: "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-z0-9._\\-]+\\))?(!)?: .{1,72}$"
+
+    # Grouping strategies when generating a Smart Commit Plan
+    max_groups: 8
+    grouping_signals:
+      - directory_proximity
+      - import_dependency
+      - change_type_affinity
+      - shared_purpose
+
+  # Repository Safety Policies
+  safety:
+    protected_branches:
+      - main
+      - master
+      - production
+      - prod
+
+    # If false, the agent must refuse direct commits/pushes to the branches above
+    allow_direct_actions_to_protected: false
+
+  # Performance and Token Limits for Diff Analysis
+  diff:
+    max_diff_lines_per_file: 500
+    max_total_diff_lines: 3000
