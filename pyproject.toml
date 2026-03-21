@@ -21,7 +21,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-agent-tools = "agent_tools.server:main"
+kyson-mcp-agent-tools = "agent_tools.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
