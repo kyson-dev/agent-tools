@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from typing import Literal
+from typing import Literal, Optional
 
 from agent_tools.protocol import Result
 from agent_tools.git import (
