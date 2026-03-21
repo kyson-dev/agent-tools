@@ -4,13 +4,16 @@ from pathlib import Path
 from typing import Dict, Any
 
 import yaml
+import logging
 from jsonschema import validate, ValidationError
+
+logger = logging.getLogger(__name__)
 
 def get_base_dir() -> Path:
     """Get the base '.agents' directory."""
-    # This file is in src/config.py
-    # So base dir is 2 levels up
-    return Path(__file__).parent.parent
+    # This file is in src/agent_tools/config.py
+    # So base dir is 3 levels up
+    return Path(__file__).parent.parent.parent
 
 def get_rules_path() -> Path:
     return get_base_dir() / "configs" / "rules.yaml"
@@ -41,10 +44,10 @@ def validate_rules(rules: Dict[str, Any]) -> None:
             # depending on strictness requirements. Let's not raise to not break L3.
             pass
 
-@functools.lru_cache(maxsize=1)
 def load_rules() -> Dict[str, Any]:
     """Load and optionally validate rules.yaml."""
     rules_path = get_rules_path()
+    logger.info(f"Attempting to load rules from: {rules_path.absolute()}")
     if not rules_path.exists():
         return {}
         
