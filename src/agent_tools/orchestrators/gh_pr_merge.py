@@ -82,9 +82,9 @@ def sense() -> Result:
             next_step="synthesize_merge_message",
             resume_point="merge",
             instruction=(
-                "1. Analyze PR title/body and metadata in `details`. "
-                "2. VALIDATION REQUIRED: Your generated merge `title` MUST strictly follow **Conventional Commits** and match `details.commit_rules`. "
-                "3. Synthesize the `title` and `body` and immediately call `gh_pr_merge_execute`."
+                "1. Analyze PR metadata in `details`. "
+                "2. VALIDATION REQUIRED: Synthesize a final squash commit `title` that STRICTLY follows **Conventional Commits** and matches `details.commit_rules.message_regex`. "
+                "3. Call `gh_pr_merge_execute(repo_path=\".\", override_json='{\"title\": \"...\", \"body\": \"...\"}')` to finalize."
             ),
             details={
                 "pr": pr_data,

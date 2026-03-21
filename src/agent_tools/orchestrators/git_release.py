@@ -100,47 +100,48 @@ def sense() -> Result:
                 "branch_info": asdict(get_branch_context())
             },
             instruction=(
-                "1. Analyze commits to determine next version using **SemVer** policy (Patch/Minor/Major). "
-                "2. VALIDATION REQUIRED: Your `tag_name` MUST match `details.tag_regex` and "
-                "`commit_message` MUST strictly follow **Conventional Commits** and match `details.rules_context`. "
-                "3. Propose `tag_name`, `tag_message` (Release Notes), and `commit_message` to user. "
-                "4. Upon approval, apply file changes and call execute(tag_json='...')."
+                "1. Analyze commits in `details` to determine next SemVer. "
+                "2. Update version strings in discovered files. "
+                "3. **COMMIT**: Run `git_commit_flow` to commit the bump (MUST follow Conventional Commits). "
+                "4. **FINALIZE**: After commit success, call `git_release_execute(repo_path=\".\", tag_json='{\"tag_name\": \"...\", \"tag_message\": \"...\"}')` to tag and push."
             ),
         )
     except Exception as e:
         return Result(status="error", message=f"Sense failed: {str(e)}", workflow=WORKFLOW)
 
-def execute(tag_name: str, tag_message: str, commit_message: str = None, files_to_commit: List[str] = None) -> Result:
-    """Stage 2: Commit bump, Tag, and Push atomically."""
-    # Strict validation first
-    val_err = _validate_input(tag_name, commit_message)
-    if val_err:
-        return val_err
+def execute(tag_name: str, tag_message: str) -> Result:
+    """Stage 2: Tag, and Push atomically. REQUIRES clean worktree."""
+    # Check regex locally first
+    tag_regex = get_release_tag_regex()
+    if not re.match(tag_regex, tag_name):
+        return Result(status="error", message=f"Tag name '{tag_name}' does not match policy: {tag_regex}", workflow=WORKFLOW)
 
     guard = _check_safety_guards()
     if guard:
-        pass
+        return guard
     
     try:
-        # 1. Commit version bump if specified
-        if files_to_commit and commit_message:
-            for f in files_to_commit:
-                run_git(["add", f]).raise_on_error(f"Failed to stage: {f}")
-            
-            run_git(["commit", "-m", commit_message]).raise_on_error("Bump commit failed")
+        # Final safety: MUST NOT be dirty at this stage
+        branch_info = get_branch_context(refresh=True)
+        if branch_info.is_dirty:
+             return Result(
+                 status="error", 
+                 message="Working tree remains dirty. You MUST commit the version bump (via git_commit_flow) before creating a tag.", 
+                 workflow=WORKFLOW
+             )
 
-        # 2. Create Annotated Tag
+        # 1. Create Annotated Tag
         tag_cmd = ["tag", "-a", tag_name, "-m", tag_message]
         run_git(tag_cmd).raise_on_error(f"Failed to create tag {tag_name}")
 
-        # 3. Push main and tags
+        # 2. Push main and tags
         run_git(["push", "origin", "--atomic", "HEAD", tag_name]).raise_on_error("Push failed")
 
         return Result(
             status="success",
             message=f"Release {tag_name} successfully published.",
             workflow=WORKFLOW,
-            details={"tag": tag_name, "commit_msg": commit_message}
+            details={"tag": tag_name}
         )
 
     except GitCommandError as e:
@@ -155,9 +156,7 @@ def run_release_workflow(mode: str, tag_json: str = None) -> Result:
         data = json.loads(tag_json)
         return execute(
             tag_name=data.get("tag_name"),
-            tag_message=data.get("tag_message"),
-            commit_message=data.get("commit_message"),
-            files_to_commit=data.get("files_to_commit", [])
+            tag_message=data.get("tag_message")
         )
     else:
         return Result(status="error", message=f"Invalid mode: {mode}", workflow=WORKFLOW)
