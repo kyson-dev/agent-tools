@@ -1,6 +1,8 @@
-# Architecture Design Guidelines
+# Architecture & Skill Specification
 
-This document defines the core architectural principles, layering specifications, and inter-layer communication rules for the project. All contributors (human and AI) must adhere to these standards.
+This document defines the core architectural principles, layering specifications, and skill writing standards for the `agent-tools` project. All contributors (human and AI) must adhere to these standards.
+
+---
 
 ## 1. System Layering (The L1-L2-L3 Model)
 
@@ -9,41 +11,26 @@ The architecture strictly separates responsibilities into three layers plus a th
 ### **L3: The Cognitive Layer (Agent/Actuator)**
 - **Definition**: The AI model / LLM agent.
 - **Responsibility**: Reasoning, intent interpretation, plan generation, synthesis (e.g., writing descriptions).
-- **Secondary Role (Actuator)**: Acts as a bridge for remote services that L2 cannot reach directly (e.g., GitHub MCP).
+- **Secondary Role (Actuator)**: Acts as a bridge for tools that L2 cannot reach directly (if applicable).
 - **Constraints**:
-  - Must act as a "dumb consumer" of L2 capabilities. If an L2 orchestrator exists for an operation, L3 must not bypass it and call L1 directly.
-  - Must strictly follow the `instruction`, `next_step`, and `resume_point` signals returned by L2.
-  - **Stateless across calls**: L3 must not cache or memorize L2's internal state to make cross-invocation decisions. Each call to L2 must be self-contained.
-  - **Non-Decision Maker**: For remote actions (MCP), L3 must follow L2's rigid parameters and not "hallucinate" or "optimize" the call.
+  - Must strictly follow the `instruction` and `resume_point` signals returned by L2.
+  - **Stateless across calls**: L3 must not cache or memorize L2's internal state. Each call to L2 must be self-contained.
 
 ### **L2: The Orchestration Layer (State Machines)**
-- **Definition**: Domain-specific skill directors and policy enforcers.
+- **Definition**: Domain-specific skill directors and policy enforcers (e.g., `src/orchestrators/`).
 - **Responsibility**:
   - Translate high-level intents into sequenced atomic stages.
   - **Decision Maker**: Owns all logic, policy guards, and pre-condition audits.
-  - **Direct Mutation**: Perfroms all deterministic local operations (e.g., `git` mutations) directly.
-  - **Instructional Governor**: Provides rigid, non-malleable instructions for remote actions (L3-delegated) once logic is satisfied.
-  - Catch all L1 exceptions and translate them into standardized signals for L3.
-- **Constraints**:
-  - Must be stateless. State is maintained only via explicit resumption parameters (e.g., `resume_point`).
-  - Must never crash with unhandled exceptions.
+  - **Direct Mutation**: Performs all deterministic operations (e.g., `git` / `gh` mutations) directly.
+  - Catch all L1 exceptions and translate them into standardized `Result` signals for L3.
 
 ### **L1: The Capability Layer (Base Utilities)**
-- **Definition**: Foundation modules wrapping primitive APIs, SDKs, or raw OS commands.
-- **Responsibility**:
-  - Execute atomic, single-purpose functions.
-  - Parse raw outputs into strongly-typed data structures.
-  - Fail loudly by raising domain-specific Exceptions.
-- **Constraints**:
-  - Completely unaware of L2 and L3. Must not contain policy logic or skill state.
-  - Must not import from orchestrators, protocol definitions, or any higher-level module.
+- **Definition**: Foundation modules wrapping primitive APIs or raw OS commands (e.g., `src/git/`, `src/gh/`).
+- **Responsibility**: Execute atomic, single-purpose functions and parse raw outputs into typed structures.
 
-### **Entry Point (CLI / MCP Adapter)**
-- **Definition**: A thin routing layer that parses external input (CLI args, MCP requests) and dispatches to L2 orchestrators.
-- **Responsibility**: Argument parsing, mode/subcommand routing, and converting L2 `Result` objects into external output (JSON, exit codes, etc.).
-- **Constraints**:
-  - Must contain zero business logic. It is a pure adapter.
-  - Must not call L1 directly; all domain logic flows through L2.
+### **Entry Point (MCP Adapter)**
+- **Definition**: `src/server.py` using FastMCP.
+- **Responsibility**: Argument parsing, routing, and converting L2 `Result` objects into MCP tool/prompt outputs.
 
 ---
 
@@ -54,64 +41,51 @@ Every L2 execution must resolve to a `Result` with one of three statuses:
 
 | Status | Semantics | L3 Action |
 |---|---|---|
-| `success` | Workflow completed entirely | Report completion to user |
-| `error` | Terminal failure, cannot proceed | Report failure; do not retry with identical parameters |
-| `handoff` | Expected breakpoint requiring data or execution bridge | Follow `instruction`, then re-invoke L2 at the `resume_point` |
-
-**`handoff` state obligations**: When returning `handoff`, L2 must include:
-- **`next_step`**: A human-readable identifier of the upcoming cognitive or remote task.
-- **`resume_point`**: A resumption token indicating where to re-enter the L2 state machine.
-- **`instruction`**: A clear directive telling L3 exactly what to do (e.g., describe commits, or execute a specific MCP tool).
-
-**`skill` field obligation**: Every `Result` must include a `workflow` identifier string (e.g., `smart_sync`), enabling L3 to correctly route responses.
-
-**Serialization constraint**: The `details` field of a `Result` must be fully JSON-serializable. Raw dataclass objects, class instances, or non-primitive types must be converted (e.g., via `dataclasses.asdict()`) before inclusion.
-
-### 2.2 L1 → L2 Protocol (Dual-Mode Reporting)
-L1 communicates outcomes to L2 via two mechanisms:
-
-| Mechanism | When to Use | Example |
-|---|---|---|
-| **Return a typed Result object** (with `.ok` property) | For operations where partial failure is expected and L2 needs to branch on the outcome | `run_git(["rebase", ...])` returns `GitResult` with `.ok`, `.stderr` |
-| **Raise a domain Exception** | For operations where failure is unrecoverable at L1's scope and L2 must catch it | `res.raise_on_error("context")` throws `GitCommandError` |
-
-L2 is responsible for catching all L1 exceptions within a `try...except` block and converting them to structured `Result` objects. **L1 exceptions must never leak to L3.**
+| `success` | Workflow completed | Report completion to user |
+| `error` | Terminal failure | Report failure; do not retry with identical parameters |
+| `handoff` | Expected breakpoint | Follow `instruction`, then re-invoke L2 at the `resume_point` |
 
 ---
 
-## 3. Design Patterns
+## 3. Skill Specification (V2)
 
-### 3.1 The Stateless Pipeline Pattern
-For complex multi-step L2 skills:
-- Define distinct, sequential **Stages**.
-- Use the `resume_point` input parameter to determine the entry stage.
-- On stage completion, advance the state to allow natural flow (fall-through or directed goto).
-- Any stage can independently halt and yield control back to L3 via `handoff`.
-- **Stages must never call each other directly.** Stage A cannot invoke Stage C; it can only return a result that leads to C.
+All workflow documentation under `skills/` MUST conform to this specification.
 
-### 3.2 Pre-condition Guarding (Fail Fast)
-L2 orchestrators must validate all pre-conditions before any mutating action:
-- Environment integrity (e.g., is the tool's runtime available?).
-- Conflicting external state (e.g., leftover operations from other tools).
-- Authorization / policy checks (e.g., protected resources).
+### 3.1 YAML Frontmatter
+Every skill file MUST begin with:
+```yaml
+---
+name: <snake_case_identifier>
+description: <One-line English summary for Agent indexing>
+---
+```
 
-If any guard fails, return `error` or `paused` immediately. Never proceed to execution.
-
-### 3.3 Import Boundaries
-- **Top-Down Only**: Entry Point → L2 → L1. Never the reverse.
-- **Intra-package Relative Imports**: Modules within the same L1 package must use relative imports (e.g., `from .types import X`).
-- **No Circularity**: No circular imports between packages, even at the same layer.
+### 3.2 Document Structure
+1. **# <Title>**
+2. **## Objective**: What this skill achieves.
+3. **## Constraints**: Mandatory prohibitions (e.g., "Do NOT push to main").
+4. **## Steps**: Numbered list using `### Step N: <Verb Phrase>`.
+5. **## Acceptance Criteria**: Observable, verifiable outcomes.
 
 ---
 
-## 4. Anti-Patterns (What NOT to Do)
+## 4. Design Patterns & Style Rules
 
-| Anti-Pattern | Why It's Dangerous |
-|---|---|
-| L3 directly calling L1 primitives / remote services when an L2 orchestrator exists | Bypasses all guards, rules, and state management |
-| L2 returning `handoff` without `resume_point` and `instruction` | L3 has no way to safely re-enter; leads to hallucinated recovery |
-| L2 putting raw dataclass objects in `Result.details` | JSON serialization fails at the Entry Point boundary |
-| L2 silently swallowing L1 errors (`try: ... except: pass`) | Masks failures; L3 believes success when state is corrupted |
-| L2 stages calling each other like functions | Destroys the linear pipeline invariant; creates hidden control flow |
-| L3 "remembering" a `resume_point` from a previous, unrelated invocation | Resumes into an invalid state |
-| Entry Point containing business/policy logic | Violates separation; makes the system untestable and non-portable across CLI/MCP/API surfaces |
+### 4.1 The Stateless Pipeline Pattern
+- Define sequential **Stages**.
+- Use `resume_point` to determine the entry stage.
+- Stages must never call each other directly; flow is managed by the Result return.
+
+### 4.2 Pre-condition Guarding (Fail Fast)
+- Validate environment, authorization, and conflicting state before any mutating action.
+
+### 4.3 `// turbo` Annotation
+- Places `// turbo` directly above a step to permit auto-execution by the Agent without user approval (for safe, non-destructive steps).
+
+---
+
+## 5. Anti-Patterns
+
+- **L3 bypassing L2**: Calling L1 primitives directly when an orchestrator exists.
+- **Silent failure**: Swallowing L1 errors without reporting them in a `Result`.
+- **Logic in Entry Point**: Business logic must live in L2, never in `server.py`.
