@@ -126,11 +126,11 @@ def _merge(override_json_str: str) -> Result:
     """Stage 2: Execute the merge with the sanitized message."""
     import json
     try:
-        data = json.loads(override_json)
+        data = json.loads(override_json_str)
         title = data.get("title")
         body = data.get("body")
     except json.JSONDecodeError:
-        return Result(status="error", message="Invalid override_json format.", workflow=WORKFLOW)
+        return Result(status="error", message="Invalid override_json_str format.", workflow=WORKFLOW)
 
     try:
         repo_info = get_repo_context()

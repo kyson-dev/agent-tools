@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 from .client import run_git
 from .types import RepoContext

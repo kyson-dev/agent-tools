@@ -67,6 +67,8 @@ def _sense() -> Result:
     if res:
         return res
 
+    repo_info = get_repo_context()
+    base = repo_info.default_branch
     # Provide rules for message synthesis
     rules = get_full_commit_rules()
     commits = get_commits_ahead(base)
@@ -96,11 +98,11 @@ def _create(draft_json_str: str) -> Result:
     """Stage 2: Receive synthesis and execute PR creation via gh CLI."""
     import json
     try:
-        data = json.loads(draft_json)
+        data = json.loads(draft_json_str)
         title = data.get("title")
         body = data.get("body")
     except json.JSONDecodeError:
-        return Result(status="error", message="Invalid draft_json format.", workflow=WORKFLOW)
+        return Result(status="error", message="Invalid draft_json_str format.", workflow=WORKFLOW)
 
     if not title or not body:
         return Result(status="error", message="Title and body are required for PR creation.", workflow=WORKFLOW)

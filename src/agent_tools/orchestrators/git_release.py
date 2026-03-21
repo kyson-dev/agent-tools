@@ -101,14 +101,15 @@ def _sense() -> Result:
     except Exception as e:
         return Result(status="error", message=f"Sense failed: {str(e)}", workflow=WORKFLOW)
 
-def _release(tag_json: str) -> Result:
+def _release(tag_json_str: str) -> Result:
     """Stage 2: Tag, and Push atomically. REQUIRES clean worktree."""
+    import json
     try:
-        data = json.loads(tag_json)
+        data = json.loads(tag_json_str)
         tag_name = data.get("tag_name")
         tag_message = data.get("tag_message")
     except json.JSONDecodeError:
-        return Result(status="error", message="Invalid tag_json format.", workflow=WORKFLOW)
+        return Result(status="error", message="Invalid tag_json_str format.", workflow=WORKFLOW)
 
     # Check regex locally first
     tag_regex = get_release_tag_regex()
