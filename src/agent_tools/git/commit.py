@@ -2,7 +2,7 @@ import re
 from typing import Tuple
 
 from .client import run_git
-from config import (
+from agent_tools.config import (
     load_rules,
     get_commit_allowed_types,
     get_commit_message_regex,

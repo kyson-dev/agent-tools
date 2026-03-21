@@ -2,8 +2,8 @@ import json
 from dataclasses import asdict
 from typing import Optional
 
-from protocol import Result
-from git import (
+from agent_tools.protocol import Result
+from agent_tools.git import (
     run_git,
     get_branch_context,
     get_repo_context,
@@ -11,7 +11,7 @@ from git import (
     execute_commit_plan,
     GitCommandError
 )
-from config import (
+from agent_tools.config import (
     get_protected_branches,
     get_commit_allowed_types,
     get_commit_message_regex,

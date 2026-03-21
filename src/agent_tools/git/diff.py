@@ -3,7 +3,7 @@ from typing import List
 from .client import run_git
 from .repo import get_repo_context
 from .types import DiffSummary, FileStatus
-from config import get_diff_max_total_lines, get_diff_max_lines_per_file
+from agent_tools.config import get_diff_max_total_lines, get_diff_max_lines_per_file
 
 
 def get_git_status() -> List[FileStatus]:

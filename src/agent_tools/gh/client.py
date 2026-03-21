@@ -1,6 +1,6 @@
 import subprocess
 from typing import List, Union
-from git.types import GitResult
+from agent_tools.git.types import GitResult
 
 def run_gh(args: Union[List[str], str], check: bool = False) -> GitResult:
     """Wrapper for GitHub CLI commands returning unified GitResult."""

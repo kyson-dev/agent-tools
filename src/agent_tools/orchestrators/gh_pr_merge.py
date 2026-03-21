@@ -1,15 +1,15 @@
 import json
 import logging
 from typing import Optional, Dict, Any, List
-from protocol import Result
-from git import (
+from agent_tools.protocol import Result
+from agent_tools.git import (
     run_git,
     get_branch_context,
     get_repo_context,
     GitCommandError
 )
-from gh import run_gh
-from config import (
+from agent_tools.gh import run_gh
+from agent_tools.config import (
     get_commit_allowed_types,
     get_commit_message_regex,
     get_commit_subject_max_length

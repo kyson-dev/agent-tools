@@ -8,9 +8,9 @@ so L3 can resume after resolving.
 import os
 from typing import Literal, Optional
 
-from protocol import Result
-from git import run_git, get_branch_context, get_repo_context, GitCommandError
-from config import get_protected_branches, get_allow_direct_actions_to_protected
+from agent_tools.protocol import Result
+from agent_tools.git import run_git, get_branch_context, get_repo_context, GitCommandError
+from agent_tools.config import get_protected_branches, get_allow_direct_actions_to_protected
 
 WORKFLOW = "git_sync"
 
