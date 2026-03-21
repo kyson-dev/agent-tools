@@ -60,10 +60,9 @@ def sense() -> Result:
             next_step="synthesize_description",
             resume_point="create",
             instruction=(
-                "1. **SYNC FIRST**: Ensure your branch is pushed and aligned by running `git_sync_flow` if not already done. "
-                "2. Analyze `commits` in `details`. "
-                "3. VALIDATION REQUIRED: Synthesize a PR `title` following **Conventional Commits** and `details.commit_rules`. "
-                "4. Call `gh_pr_create_execute(repo_path=\".\", draft_json='{\"title\": \"...\", \"body\": \"...\"}')`."
+                "1. Analyze `commits` in `details`. "
+                "2. VALIDATION REQUIRED: Synthesize a PR `title` following **Conventional Commits** and `details.commit_rules`. "
+                "3. Call `gh_pr_create_execute(repo_path=\".\", draft_json='{\"title\": \"...\", \"body\": \"...\"}')`."
             ),
             details={
                 "owner": repo_info.owner,

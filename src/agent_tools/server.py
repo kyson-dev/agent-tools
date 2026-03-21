@@ -144,16 +144,18 @@ Follow this linear rebase sync protocol:
 def smart_pr_create_flow() -> str:
     return """
 Follow this standard PR creation protocol:
-1. ALWAYS strictly follow the `instruction` field returned by `gh_pr_create_sense`.
-2. Use 'details.commits' to synthesize the PR content as instructed.
+1. Sync: First, ensure your branch is updated and pushed by running the `git_sync_flow`.
+2. Sense: Call `gh_pr_create_sense(repo_path=".")`.
+3. Follow: ALWAYS strictly follow the dynamic `instruction` field returned by the tool.
 """
 
 @mcp.prompt()
 def smart_pr_merge_flow() -> str:
     return """
 Follow this professional PR merge protocol:
-1. ALWAYS strictly follow the `instruction` returned by `gh_pr_merge_sense`.
-2. Use 'details.commit_rules' to ensure the final squash message is perfectly compliant.
+1. Sync: First, ensure your branch is updated and pushed by running the `git_sync_flow`.
+2. Sense: Call `gh_pr_merge_sense(repo_path=".")`.
+3. Follow: ALWAYS strictly follow the dynamic `instruction` field returned by the tool.
 """
 
 @mcp.prompt()

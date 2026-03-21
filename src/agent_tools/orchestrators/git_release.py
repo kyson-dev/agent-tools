@@ -96,14 +96,15 @@ def sense() -> Result:
                 "commits": [asdict(c) for c in commits],
                 "configured_version_files": get_release_version_files(),
                 "tag_regex": get_release_tag_regex(),
-                "rules_context": get_full_commit_rules(),
+                "commit_rules": get_full_commit_rules(),
                 "branch_info": asdict(get_branch_context())
             },
             instruction=(
                 "1. Analyze commits in `details` to determine next SemVer. "
                 "2. Update version strings in discovered files. "
-                "3. **COMMIT**: Run `git_commit_flow` to commit the bump (MUST follow Conventional Commits). "
-                "4. **FINALIZE**: After commit success, call `git_release_execute(repo_path=\".\", tag_json='{\"tag_name\": \"...\", \"tag_message\": \"...\"}')` to tag and push."
+                "3. **HANDOFF**: Propose the `tag_name`, `tag_message` (Release Notes), and `commit_message` to the user and AWAIT explicit authorization. "
+                "4. **COMMIT**: Upon approval, run `git_commit_flow` to commit the bump (MUST follow `details.commit_rules`). "
+                "5. **FINALIZE**: Once committed, call `git_release_execute` to tag and push."
             ),
         )
     except Exception as e:

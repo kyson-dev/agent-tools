@@ -85,8 +85,8 @@ def sense() -> Result:
             next_step="build_plan",
             resume_point="plan",
             instruction=(
-                "1. Analyze `changed_files` and `rules_context` (regex, types, limits) in `details`. "
-                "2. VALIDATION REQUIRED: All commit messages MUST strictly follow **Conventional Commits** and match the regex. "
+                "1. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
+                "2. VALIDATION REQUIRED: All commit messages MUST strictly follow **Conventional Commits** and `details.commit_rules`. "
                 "3. Execute `git_commit_execute(repo_path=\".\", plan_json='...')` with your grouping strategy."
             ),
             details={
@@ -94,7 +94,7 @@ def sense() -> Result:
                 "diff_summary": diff_info.diff_summary,
                 "branch_info": asdict(branch_info),
                 "repo_context": asdict(repo_info),
-                "rules_context": rules_context,
+                "commit_rules": rules_context,
             },
         )
 
