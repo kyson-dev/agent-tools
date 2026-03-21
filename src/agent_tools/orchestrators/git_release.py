@@ -1,7 +1,8 @@
 import json
 import logging
+import re
 from dataclasses import asdict
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from agent_tools.protocol import Result
 from agent_tools.git import (
@@ -20,22 +21,6 @@ from agent_tools.config import (
 
 logger = logging.getLogger(__name__)
 WORKFLOW = "git_release"
-
-import re
-
-def _validate_input(tag_name: str, commit_msg: str) -> Optional[Result]:
-    """Validate tag and commit message against project rules."""
-    rules = get_full_commit_rules()
-    tag_regex = get_release_tag_regex()
-    commit_regex = rules["message_regex"]
-
-    if not re.match(tag_regex, tag_name):
-        return Result(status="error", message=f"Tag name '{tag_name}' does not match policy: {tag_regex}", workflow=WORKFLOW)
-    
-    if commit_msg and not re.match(commit_regex, commit_msg):
-        return Result(status="error", message=f"Commit message does not match policy: {commit_regex}", workflow=WORKFLOW)
-    
-    return None
 
 def _check_safety_guards() -> Optional[Result]:
     """Strict pre-conditions (Branch check, Dirty check, Sync check)."""
@@ -58,26 +43,31 @@ def _check_safety_guards() -> Optional[Result]:
                 message="Working tree remains dirty. Please commit or stash changes before releasing.",
                 workflow=WORKFLOW
             )
-
-        # Guard 3: Must be up to date with origin (behind == 0)
-        if branch_info.behind > 0:
-            return Result(
-                status="error",
-                message=f"Local branch is behind origin by {branch_info.behind} commits. Please pull first.",
-                workflow=WORKFLOW
-            )
             
         return None
     except GitCommandError as e:
         return Result(status="error", message=str(e), workflow=WORKFLOW)
 
-def sense() -> Result:
+def _init_sync() -> Result:
+    return Result(
+                status="handoff",
+                message="git release initiated. Ensuring local branch is synchronized.",
+                workflow=WORKFLOW,
+                next_step="sync_branch",
+                resume_point="create",
+                instruction="\
+                1. **SYNC**: Run `git_sync_flow` to ensure your branch is updated and pushed. \
+                2. **RESUME**: Call `git_release_flow(point=\"sense\")` after sync completes.",
+            )
+
+def _sense() -> Result:
     """Stage 1: Gather release context and handoff to AI."""
     guard = _check_safety_guards()
     if guard:
         return guard
 
     try:
+
         latest_tag = get_latest_tag()
         if latest_tag:
             commits = get_commits_ahead(latest_tag)
@@ -100,18 +90,26 @@ def sense() -> Result:
                 "branch_info": asdict(get_branch_context())
             },
             instruction=(
-                "1. Analyze commits in `details` to determine next SemVer. "
-                "2. Update version strings in discovered files. "
-                "3. **HANDOFF**: Propose the `tag_name`, `tag_message` (Release Notes), and `commit_message` to the user and AWAIT explicit authorization. "
-                "4. **COMMIT**: Upon approval, run `git_commit_flow` to commit the bump (MUST follow `details.commit_rules`). "
-                "5. **FINALIZE**: Once committed, call `git_release_execute` to tag and push."
+                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. Tag MUST following `details.tag_regex`. "
+                "2. **ANALYZE**: Determine next SemVer based on `commits`. **INTELLIGENT DISCOVERY**: If `configured_version_files` is empty, search for versioning indicators in common files. If the project HAS NO version field, explicitly propose a **Tag-Only Release** (skipping Mutate/Commit). "
+                "3. **SANITY CHECK**: Cross-reference `details.latest_tag` with any found `version_files`. If versions are inconsistent across files, or if a manual bump is detected, you MUST propose a unification strategy following SemVer policy (no downgrades). "
+                "4. **EXPLICIT HANDOFF (STOP)**: Present the full release draft (`tag_name`, Release Notes, and file discovery status) to the user. AWAIT explicit authorization. "
+                "5. **MUTATE & COMMIT**: Based on authorization, use `replace_file_content` to unify/apply version increments, then use `git_commit_flow` to commit. Skip if state is already compliant or it's a Tag-Only release. "
+                "6. **FINALIZE**: Ensure worktree is clean, then call `git_release_flow(point=\"release\", tag_json_str='{\"tag_name\": \"...\", \"tag_message\": \"...\"}')` to tag and push. If the tag already exists or push fails, analyze the error and propose a resolution."
             ),
         )
     except Exception as e:
         return Result(status="error", message=f"Sense failed: {str(e)}", workflow=WORKFLOW)
 
-def execute(tag_name: str, tag_message: str) -> Result:
+def _release(tag_json: str) -> Result:
     """Stage 2: Tag, and Push atomically. REQUIRES clean worktree."""
+    try:
+        data = json.loads(tag_json)
+        tag_name = data.get("tag_name")
+        tag_message = data.get("tag_message")
+    except json.JSONDecodeError:
+        return Result(status="error", message="Invalid tag_json format.", workflow=WORKFLOW)
+
     # Check regex locally first
     tag_regex = get_release_tag_regex()
     if not re.match(tag_regex, tag_name):
@@ -122,15 +120,6 @@ def execute(tag_name: str, tag_message: str) -> Result:
         return guard
     
     try:
-        # Final safety: MUST NOT be dirty at this stage
-        branch_info = get_branch_context(refresh=True)
-        if branch_info.is_dirty:
-             return Result(
-                 status="error", 
-                 message="Working tree remains dirty. You MUST commit the version bump (via git_commit_flow) before creating a tag.", 
-                 workflow=WORKFLOW
-             )
-
         # 1. Create Annotated Tag
         tag_cmd = ["tag", "-a", tag_name, "-m", tag_message]
         run_git(tag_cmd).raise_on_error(f"Failed to create tag {tag_name}")
@@ -148,16 +137,16 @@ def execute(tag_name: str, tag_message: str) -> Result:
     except GitCommandError as e:
         return Result(status="error", message=str(e), workflow=WORKFLOW)
 
-def run_release_workflow(mode: str, tag_json: str = None) -> Result:
-    if mode == "sense":
-        return sense()
-    elif mode == "execute":
-        if not tag_json:
-            return Result(status="error", message="Missing tag_json", workflow=WORKFLOW)
-        data = json.loads(tag_json)
-        return execute(
-            tag_name=data.get("tag_name"),
-            tag_message=data.get("tag_message")
-        )
-    else:
-        return Result(status="error", message=f"Invalid mode: {mode}", workflow=WORKFLOW)
+
+def git_release_flow(point: Literal["init","sense", "release"]="init", tag_json_str = "") -> Result: 
+    try:
+        if point == "init":
+            return _init_sync()
+        elif point == "sense":
+            return _sense()
+        elif point == "release":
+            return _release(tag_json_str)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"Git release error: {str(e)}", workflow=WORKFLOW)

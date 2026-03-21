@@ -47,7 +47,7 @@ def _check_preconditions() -> Optional[Result]:
     return None
 
 
-def sense() -> Result:
+def _sense() -> Result:
     try:
         guard = _check_preconditions()
         if guard:
@@ -85,9 +85,9 @@ def sense() -> Result:
             next_step="build_plan",
             resume_point="plan",
             instruction=(
-                "1. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
-                "2. VALIDATION REQUIRED: All commit messages MUST strictly follow **Conventional Commits** and `details.commit_rules`. "
-                "3. Execute `git_commit_execute(repo_path=\".\", plan_json='...')` with your grouping strategy."
+                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
+                "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
+                "3. Execute `git_commit_flow(point=\"commit\", plan_json_str='{\"commits\": [{\"files\": [\"...\"], \"message\": \"...\"}]}')` with your grouping strategy."
             ),
             details={
                 "changed_files": [asdict(f) for f in changed_files],
@@ -104,7 +104,7 @@ def sense() -> Result:
         return Result(status="error", message=f"Sense error: {str(e)}", workflow=WORKFLOW)
 
 
-def execute(plan_json_str: str) -> Result:
+def _commit(plan_json_str: str) -> Result:
     try:
         # Guard: pre-conditions before executing any git writes
         guard = _check_preconditions()
@@ -143,12 +143,13 @@ def execute(plan_json_str: str) -> Result:
         return Result(status="error", message=f"Execute error: {str(e)}", workflow=WORKFLOW)
 
 
-def run_commit_workflow(mode: str, plan_json_str: str = None) -> Result:
-    if mode == "sense":
-        return sense()
-    elif mode == "plan":
-        if not plan_json_str:
-            return Result(status="error", message="mode='plan' requires a plan_json_str argument.", workflow=WORKFLOW)
-        return execute(plan_json_str)
-    else:
-        return Result(status="error", message=f"Invalid mode: '{mode}'. Expected 'sense' or 'plan'.", workflow=WORKFLOW)
+def git_commit_flow(point: Literal["sense", "commit"]="sense", plan_json_str: str = "") -> Result:
+    try:
+        if point == "sense":
+            return _sense()
+        elif point == "commit":
+            return _commit(plan_json_str)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"Git commit flow error: {str(e)}", workflow=WORKFLOW)

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from agent_tools.protocol import Result
 from agent_tools.git import (
     run_git,
@@ -16,8 +16,20 @@ from agent_tools.config import (
 WORKFLOW = "gh_pr_merge"
 logger = logging.getLogger(WORKFLOW)
 
-def sense() -> Result:
-    """Stage 1: Gather PR context and hand off for final squash message synthesis."""
+def _init_sync() -> Result:
+    return Result(
+                status="handoff",
+                message="PR merge initiated. Ensuring local branch is synchronized.",
+                workflow=WORKFLOW,
+                next_step="sync_branch",
+                resume_point="merge",
+                instruction="\
+                    1. **SYNC**: Run `git_sync_flow` to ensure your branch is updated and pushed. \
+                    2. **RESUME**: Call `gh_pr_merge_flow(point=\"sense\")` after sync completes.",
+            )
+
+
+def _check_safety_guards() -> Optional[Result]:
     try:
         repo_info = get_repo_context(refresh=True)
         branch_info = get_branch_context(refresh=True)
@@ -27,6 +39,21 @@ def sense() -> Result:
         
         if branch_info.is_detached:
             return Result(status="error", message="HEAD is detached. Merge requires being on a feature branch.", workflow=WORKFLOW)
+        
+        return None
+    except Exception as e:
+        return Result(status="error", message=f"Safety guard check failed: {str(e)}", workflow=WORKFLOW)
+
+def _sense() -> Result:
+    """
+    Two-stage Sense:
+    1. init:  Handoff to sync first.
+    2. merge: Perform analysis for PR merge.
+    """
+    try:
+        res = _check_safety_guards()
+        if res:
+            return res
 
         current_branch = branch_info.current_branch
         
@@ -82,9 +109,9 @@ def sense() -> Result:
             next_step="synthesize_merge_message",
             resume_point="merge",
             instruction=(
-                "1. Analyze PR metadata in `details`. "
-                "2. VALIDATION REQUIRED: Synthesize a final squash commit `title` that STRICTLY follows **Conventional Commits** and matches `details.commit_rules.message_regex`. "
-                "3. Call `gh_pr_merge_execute(repo_path=\".\", override_json='{\"title\": \"...\", \"body\": \"...\"}')` to finalize."
+                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
+                "2. Analyze PR metadata in `details`. "
+                "3. Call `gh_pr_merge_flow(point=\"merge\", override_json_str='{\"title\": \"...\", \"body\": \"...\"}')` to finalize."
             ),
             details={
                 "pr": pr_data,
@@ -95,8 +122,16 @@ def sense() -> Result:
     except Exception as e:
         return Result(status="error", message=f"Merge sense error: {str(e)}", workflow=WORKFLOW)
 
-def merge(title: str, body: Optional[str] = None) -> Result:
+def _merge(override_json_str: str) -> Result:
     """Stage 2: Execute the merge with the sanitized message."""
+    import json
+    try:
+        data = json.loads(override_json)
+        title = data.get("title")
+        body = data.get("body")
+    except json.JSONDecodeError:
+        return Result(status="error", message="Invalid override_json format.", workflow=WORKFLOW)
+
     try:
         repo_info = get_repo_context()
         branch_info = get_branch_context()
@@ -116,7 +151,7 @@ def merge(title: str, body: Optional[str] = None) -> Result:
         rules = get_full_commit_rules()
         commit_regex = rules["message_regex"]
         if title and not re.match(commit_regex, title):
-             return Result(status="error", message=f"Merged title '{title}' violates commit policy: {commit_regex}", workflow=WORKFLOW)
+            return Result(status="error", message=f"Merged title '{title}' violates commit policy: {commit_regex}", workflow=WORKFLOW)
 
         # Execute Merge
         args = ["pr", "merge", str(number), "--squash", "--delete-branch"]
@@ -127,8 +162,9 @@ def merge(title: str, body: Optional[str] = None) -> Result:
             
         merge_res = run_gh(args)
         if merge_res.returncode != 0:
-             return Result(status="error", message=f"Merge failed: {merge_res.stderr}", workflow=WORKFLOW)
+            return Result(status="error", message=f"Merge failed: {merge_res.stderr}", workflow=WORKFLOW)
 
+        
         # Local Cleanup
         cleanup_report = []
         if branch_info.is_dirty:
@@ -151,15 +187,16 @@ def merge(title: str, body: Optional[str] = None) -> Result:
     except Exception as e:
         return Result(status="error", message=f"Merge execution error: {str(e)}", workflow=WORKFLOW)
 
-def run_pr_merge_workflow(mode: str, data_json: Optional[str] = None) -> Result:
-    if mode == "sense":
-        return sense()
-    if mode == "merge":
-        if not data_json:
-            return Result(status="error", message="mode='merge' requires data_json (title, body).", workflow=WORKFLOW)
-        try:
-            data = json.loads(data_json)
-            return merge(title=data.get("title"), body=data.get("body"))
-        except json.JSONDecodeError:
-            return Result(status="error", message="Invalid data_json format.", workflow=WORKFLOW)
-    return Result(status="error", message=f"Invalid mode: '{mode}'.", workflow=WORKFLOW)
+
+def gh_pr_merge_flow(point: Literal["init", "sense", "merge"]="init", override_json_str: str = "") -> Result:
+    try:
+        if point == "init":
+            return _init_sync()
+        elif point == "sense":
+            return _sense()
+        elif point == "merge":
+            return _merge(override_json_str)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"PR merge flow error: {str(e)}", workflow=WORKFLOW)
