@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Literal
 from mcp.server.fastmcp import FastMCP
 
 from agent_tools.context import REPO_CWD
