@@ -8,6 +8,7 @@ from agent_tools.git import (
     GitCommandError,
 )
 from agent_tools.gh import run_gh
+from agent_tools.config import get_full_commit_rules
 
 WORKFLOW = "gh_pr_create"
 
@@ -49,21 +50,27 @@ def sense() -> Result:
                 workflow=WORKFLOW,
             )
 
+        # Provide rules for message synthesis
+        rules = get_full_commit_rules()
+
         return Result(
             status="handoff",
             message="Context extracted. Please synthesize PR title and body.",
             workflow=WORKFLOW,
             next_step="synthesize_description",
             resume_point="create",
-            instruction="1. Analyze the `commits` in `details`. 2. Synthesize a concise PR 'title' and 'body'. "
-                        "The PR 'title' MUST follow project commit conventions (e.g., feat: ..., fix: ...) as it will be the merge commit message. "
-                        "3. Call `gh_pr_create_execute(repo_path=\".\", draft_json='{\"title\": \"...\", \"body\": \"...\"}')`.",
+            instruction=(
+                "1. Analyze `commits` in `details`. "
+                "2. VALIDATION REQUIRED: Synthesize a PR `title` following **Conventional Commits** and `details.commit_rules`. "
+                "3. Call `gh_pr_create_execute(repo_path=\".\", draft_json='{\"title\": \"...\", \"body\": \"...\"}')`."
+            ),
             details={
                 "owner": repo_info.owner,
                 "repo": repo_info.repo,
                 "head": branch_info.current_branch,
                 "base": base,
                 "commits": [asdict(c) for c in commits],
+                "commit_rules": rules
             },
         )
 
