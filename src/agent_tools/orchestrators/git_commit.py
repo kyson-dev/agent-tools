@@ -1,6 +1,6 @@
 import json
 from dataclasses import asdict
-from typing import Optional
+from typing import Optional, Literal
 
 from agent_tools.protocol import Result
 from agent_tools.git import (
