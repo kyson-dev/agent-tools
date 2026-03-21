@@ -89,3 +89,4 @@ description: <One-line English summary for Agent indexing>
 - **L3 bypassing L2**: Calling L1 primitives directly when an orchestrator exists.
 - **Silent failure**: Swallowing L1 errors without reporting them in a `Result`.
 - **Logic in Entry Point**: Business logic must live in L2, never in `server.py`.
+

@@ -1,3 +1,4 @@
+import os
 import functools
 import json
 from pathlib import Path
@@ -16,9 +17,18 @@ def get_base_dir() -> Path:
     return Path(__file__).parent.parent.parent
 
 def get_rules_path() -> Path:
+    # 1. First choice: The 'configs/rules.yaml' inside the CURRENT active repository
+    project_rules = Path(os.getcwd()) / "configs" / "rules.yaml"
+    if project_rules.exists():
+        return project_rules
+            
+    # 2. Fallback: The tool's own default rules (if bundled)
     return get_base_dir() / "configs" / "rules.yaml"
 
 def get_schema_path() -> Path:
+    project_schema = Path(os.getcwd()) / "configs" / "schema.json"
+    if project_schema.exists():
+        return project_schema
     return get_base_dir() / "configs" / "schema.json"
 
 @functools.lru_cache(maxsize=1)
