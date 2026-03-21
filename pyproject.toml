@@ -25,3 +25,6 @@ mcp-agent-tools = "agent_tools.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agent_tools = ["configs/*.yaml", "configs/*.json"]

@@ -17,19 +17,26 @@ def get_base_dir() -> Path:
     return Path(__file__).parent.parent.parent
 
 def get_rules_path() -> Path:
-    # 1. First choice: The 'configs/rules.yaml' inside the CURRENT active repository
-    project_rules = Path(os.getcwd()) / "configs" / "rules.yaml"
+    # 1. PRIORITY 1: Project-level rules (.agent/configs/rules.yaml)
+    project_rules = Path(os.getcwd()) / ".agent" / "configs" / "rules.yaml"
     if project_rules.exists():
         return project_rules
+        
+    # 2. PRIORITY 2: User-level global rules (~/.agent/configs/rules.yaml)
+    user_rules = Path.home() / ".agent" / "configs" / "rules.yaml"
+    if user_rules.exists():
+        return user_rules
             
-    # 2. Fallback: The tool's own default rules (if bundled)
-    return get_base_dir() / "configs" / "rules.yaml"
+    # 3. PRIORITY 3: Tool-level internal fallback
+    return Path(__file__).parent / "configs" / "rules.yaml"
 
 def get_schema_path() -> Path:
-    project_schema = Path(os.getcwd()) / "configs" / "schema.json"
+    # Same cascading logic for schema or keep it tool-internal?
+    # Usually schema is tied to the tool version, but we'll follow similar pattern
+    project_schema = Path(os.getcwd()) / ".agent" / "configs" / "schema.json"
     if project_schema.exists():
         return project_schema
-    return get_base_dir() / "configs" / "schema.json"
+    return Path(__file__).parent / "configs" / "schema.json"
 
 @functools.lru_cache(maxsize=1)
 def load_schema() -> Dict[str, Any]:
