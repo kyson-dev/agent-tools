@@ -115,8 +115,9 @@ def git_release_sense(repo_path: str) -> str:
 @mcp.tool()
 def git_release_execute(repo_path: str, tag_json: str) -> str:
     """
-    Stage 2: Commits version bumps, creates an annotated tag, and pushes to origin.
-    tag_json: '{"tag_name": "v1.2.3", "files_to_commit": ["pyproject.toml"]}'
+    Stage 2: Creates an annotated tag and pushes to origin.
+    REQUIRES a clean worktree (commit version bumps first via git_commit_flow).
+    tag_json: '{"tag_name": "v1.2.3", "tag_message": "..."}'
     """
     res = _with_cwd(run_release_workflow, repo_path, mode="execute", tag_json=tag_json)
     return res.to_json()
@@ -126,54 +127,41 @@ def git_release_execute(repo_path: str, tag_json: str) -> str:
 @mcp.prompt()
 def git_commit_flow() -> str:
     return """
-Follow this industrial-grade commit workflow:
-1. Scan changes: Call `git_commit_sense(repo_path=".")`.
-2. Execution Strategy: 
-   - ALWAYS strictly follow the `instruction` field returned by the tool's result.
-   - Use `details.rules_context` for validation (regex, types, limits).
-3. Execute: Once your plan is synthesized according to the provided instructions, call `git_commit_execute`.
+Follow this industrial-grade commit protocol:
+1. ALWAYS strictly follow the `instruction` field returned by `git_commit_sense`.
+2. Use `details.rules_context` to ensure compliance with project-specific commit rules.
 """
 
 @mcp.prompt()
 def git_sync_flow() -> str:
     return """
-Follow this smart sync workflow:
-1. Start sync: Call `git_sync(repo_path=".", point="init")`.
-2. Handle handoffs: If status is 'handoff', follow the instruction and re-invoke with the specified 'resume_point'.
-3. Verify: Ensure rebase completes and changes are pushed.
+Follow this linear rebase sync protocol:
+1. ALWAYS strictly follow the dynamic `instruction` returned by the `git_sync` tool.
+2. If the status is 'handoff', execute the specified recovery actions before resuming.
 """
 
 @mcp.prompt()
 def smart_pr_create_flow() -> str:
     return """
-Follow this GitHub PR creation workflow:
-1. Extract Context: Call `gh_pr_create_sense(repo_path=".")`.
-2. Synthesize: Based on 'details.commits', draft a PR title (Conventional Commit) and body (Summary, Changes, Impact).
-3. Execute: Call `gh_pr_create_execute(repo_path=".", draft_json='{"title": "...", "body": "..."}')`.
+Follow this standard PR creation protocol:
+1. ALWAYS strictly follow the `instruction` field returned by `gh_pr_create_sense`.
+2. Use 'details.commits' to synthesize the PR content as instructed.
 """
 
 @mcp.prompt()
 def smart_pr_merge_flow() -> str:
     return """
-Follow this industrial-grade PR merge workflow:
-1. Sync: First, ensure the branch is updated by running the `git_sync_flow`.
-2. Sense: Call `gh_pr_merge_sense(repo_path=".")`.
-3. Synthesize: 
-   - ALWAYS strictly follow the `instruction` returned by the tool.
-   - Use 'details.commit_rules' to ensure policy compliance.
-4. Execute: Call `gh_pr_merge_execute` once you have synthesized the required materials.
+Follow this professional PR merge protocol:
+1. ALWAYS strictly follow the `instruction` returned by `gh_pr_merge_sense`.
+2. Use 'details.commit_rules' to ensure the final squash message is perfectly compliant.
 """
 
 @mcp.prompt()
 def smart_release_flow() -> str:
     return """
-Follow this industrial-grade automated release workflow:
-1. Sense: Call `git_release_sense(repo_path=".")`.
-2. Analyze & Synthesize: 
-   - ALWAYS strictly follow the dynamic `instruction` field returned by the tool.
-   - Use 'details' to determine the next version and identify target files.
-3. Handoff: Show the complete release plan to the user and AWAIT explicit authorization.
-4. Execute: Update version strings and call `git_release_execute` to finalize.
+Follow this industrial-grade automated release protocol:
+1. ALWAYS strictly follow the dynamic `instruction` field returned by `git_release_sense`.
+2. Use 'details' to navigate between version discovery, delegated commits, and final tagging.
 """
 
 def main():
