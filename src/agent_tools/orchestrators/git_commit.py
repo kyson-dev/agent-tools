@@ -13,12 +13,8 @@ from agent_tools.git import (
 )
 from agent_tools.config import (
     get_protected_branches,
-    get_commit_allowed_types,
-    get_commit_message_regex,
-    get_commit_subject_max_length,
-    get_commit_body_wrap_length,
-    get_commit_grouping_signals,
-    get_allow_direct_actions_to_protected
+    get_allow_direct_actions_to_protected,
+    get_full_commit_rules
 )
 
 WORKFLOW = "git_commit"
@@ -80,13 +76,7 @@ def sense() -> Result:
                 details={"changed_files": []},
             )
 
-        rules_context = {
-            "allowed_types": get_commit_allowed_types(),
-            "message_regex": get_commit_message_regex(),
-            "subject_max_length": get_commit_subject_max_length(),
-            "body_wrap_length": get_commit_body_wrap_length(),
-            "grouping_signals": get_commit_grouping_signals(),
-        }
+        rules_context = get_full_commit_rules()
 
         return Result(
             status="handoff",
@@ -94,9 +84,11 @@ def sense() -> Result:
             workflow=WORKFLOW,
             next_step="build_plan",
             resume_point="plan",
-            instruction="1. Read `details` to understand changed files and project rules. "
-                    "2. Construct a valid JSON commit plan following `rules_context` (allowed types, length limits). "
-                    "3. Execute `git_commit_execute(repo_path=\".\", plan_json='...')` to apply changes.",
+            instruction=(
+                "1. Analyze changed files and `rules_context` in `details`. "
+                "2. VALIDATION REQUIRED: All commit messages MUST strictly follow **Conventional Commits** and match `rules_context.message_regex`. "
+                "3. Execute `git_commit_execute(repo_path=\".\", plan_json='...')` to apply changes."
+            ),
             details={
                 "changed_files": [asdict(f) for f in changed_files],
                 "diff_summary": diff_info.diff_summary,

@@ -8,7 +8,8 @@ from agent_tools.orchestrators import (
     run_commit_workflow,
     run_sync_workflow,
     run_pr_create_workflow,
-    run_pr_merge_workflow
+    run_pr_merge_workflow,
+    run_release_workflow
 )
 
 # Set up logging to stderr for MCP compatibility
@@ -100,6 +101,26 @@ def gh_pr_merge_execute(repo_path: str, override_json: str) -> str:
     res = _with_cwd(run_pr_merge_workflow, repo_path, mode="merge", data_json=override_json)
     return res.to_json()
 
+# --- Git Release Tools ---
+
+@mcp.tool()
+def git_release_sense(repo_path: str) -> str:
+    """
+    Stage 1: Validates branch/purity and gathers release context (tags, commits).
+    Use this to start a release analysis.
+    """
+    res = _with_cwd(run_release_workflow, repo_path, mode="sense")
+    return res.to_json()
+
+@mcp.tool()
+def git_release_execute(repo_path: str, tag_json: str) -> str:
+    """
+    Stage 2: Commits version bumps, creates an annotated tag, and pushes to origin.
+    tag_json: '{"tag_name": "v1.2.3", "files_to_commit": ["pyproject.toml"]}'
+    """
+    res = _with_cwd(run_release_workflow, repo_path, mode="execute", tag_json=tag_json)
+    return res.to_json()
+
 # --- Prompts (Workflows) ---
 
 @mcp.prompt()
@@ -107,9 +128,10 @@ def git_commit_flow() -> str:
     return """
 Follow this industrial-grade commit workflow:
 1. Scan changes: Call `git_commit_sense(repo_path=".")`.
-2. Analyze the 'details' field: Identify logical groups of changes and check 'rules_context' (regex, limits).
-3. Draft a Plan: Create a JSON object matching the required schema.
-4. Execute: Call `git_commit_execute(repo_path=".", plan_json="...")` with your drafted plan.
+2. Execution Strategy: 
+   - ALWAYS strictly follow the `instruction` field returned by the tool's result.
+   - Use `details.rules_context` for validation (regex, types, limits).
+3. Execute: Once your plan is synthesized according to the provided instructions, call `git_commit_execute`.
 """
 
 @mcp.prompt()
@@ -136,8 +158,22 @@ def smart_pr_merge_flow() -> str:
 Follow this industrial-grade PR merge workflow:
 1. Sync: First, ensure the branch is updated by running the `git_sync_flow`.
 2. Sense: Call `gh_pr_merge_sense(repo_path=".")`.
-3. Synthesize & Merge: Based on 'details.pr' and 'details.commit_rules', generate a final squash commit `title` and `body` (following Conventional Commits), then immediately call `gh_pr_merge_execute(repo_path=".", override_json='{"title": "...", "body": "..."}')` without asking for user confirmation of the message.
-4. Finalize: Report the PR URL and cleanup results.
+3. Synthesize: 
+   - ALWAYS strictly follow the `instruction` returned by the tool.
+   - Use 'details.commit_rules' to ensure policy compliance.
+4. Execute: Call `gh_pr_merge_execute` once you have synthesized the required materials.
+"""
+
+@mcp.prompt()
+def smart_release_flow() -> str:
+    return """
+Follow this industrial-grade automated release workflow:
+1. Sense: Call `git_release_sense(repo_path=".")`.
+2. Analyze & Synthesize: 
+   - ALWAYS strictly follow the dynamic `instruction` field returned by the tool.
+   - Use 'details' to determine the next version and identify target files.
+3. Handoff: Show the complete release plan to the user and AWAIT explicit authorization.
+4. Execute: Update version strings and call `git_release_execute` to finalize.
 """
 
 def main():

@@ -150,3 +150,30 @@ def get_allow_direct_actions_to_protected() -> bool:
         return rules["git"]["safety"].get("allow_direct_actions_to_protected", False)
     except KeyError:
         return False
+
+def get_release_version_files() -> list[str]:
+    """Get the list of files to update for a release."""
+    rules = load_rules()
+    try:
+        return rules["git"]["release"]["version_files"]
+    except KeyError:
+        return []
+
+def get_release_tag_regex() -> str:
+    """Get the regex pattern for validating release tags."""
+    rules = load_rules()
+    try:
+        return rules["git"]["release"]["tag_regex"]
+    except KeyError:
+        return "^v\\d+\\.\\d+\\.\\d+$"  # Default to v1.2.3 format
+
+def get_full_commit_rules() -> Dict[str, Any]:
+    """Returns the comprehensive set of commit rules for AI consumption."""
+    return {
+        "allowed_types": get_commit_allowed_types(),
+        "message_regex": get_commit_message_regex(),
+        "subject_max_length": get_commit_subject_max_length(),
+        "body_wrap_length": get_commit_body_wrap_length(),
+        "grouping_signals": get_commit_grouping_signals(),
+        "max_groups": get_commit_max_groups(),
+    }

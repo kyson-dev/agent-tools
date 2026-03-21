@@ -1,7 +1,7 @@
 from .client import run_git
 from .transaction import GitTransaction
 from .branch import get_branch_context
-from .repo import get_repo_context
+from .repo import get_repo_context, get_latest_tag
 from .diff import get_diff_summary
 from .commit import execute_commit_plan
 from .log import get_commits_ahead
@@ -12,6 +12,7 @@ __all__ = [
     "GitTransaction",
     "get_branch_context",
     "get_repo_context",
+    "get_latest_tag",
     "get_diff_summary",
     "execute_commit_plan",
     "get_commits_ahead",

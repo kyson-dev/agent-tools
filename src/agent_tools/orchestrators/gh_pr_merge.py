@@ -10,9 +10,7 @@ from agent_tools.git import (
 )
 from agent_tools.gh import run_gh
 from agent_tools.config import (
-    get_commit_allowed_types,
-    get_commit_message_regex,
-    get_commit_subject_max_length
+    get_full_commit_rules
 )
 
 WORKFLOW = "gh_pr_merge"
@@ -75,11 +73,7 @@ def sense() -> Result:
              return Result(status="error", message=f"PR #{number} is BLOCKED (likely missing approvals).", workflow=WORKFLOW)
 
         # Provide rules for message synthesis
-        rules = {
-            "allowed_types": get_commit_allowed_types(),
-            "subject_max_length": get_commit_subject_max_length(),
-            "message_regex": get_commit_message_regex()
-        }
+        rules = get_full_commit_rules()
 
         return Result(
             status="handoff",
@@ -88,9 +82,9 @@ def sense() -> Result:
             next_step="synthesize_merge_message",
             resume_point="merge",
             instruction=(
-                "1. Analyze PR title, body, and rules in `details`. "
-                "2. Synthesize a final squash commit `title` (subject) and `body`. "
-                "3. Call `gh_pr_merge_execute(repo_path=\".\", override_json='{\"title\": \"...\", \"body\": \"...\"}')`."
+                "1. Analyze PR title/body and metadata in `details`. "
+                "2. VALIDATION REQUIRED: Your generated merge `title` MUST strictly follow **Conventional Commits** and match `details.commit_rules`. "
+                "3. Synthesize the `title` and `body` and immediately call `gh_pr_merge_execute`."
             ),
             details={
                 "pr": pr_data,
@@ -116,6 +110,13 @@ def merge(title: str, body: Optional[str] = None) -> Result:
         pr_data = json.loads(view_res.stdout)
         number = pr_data.get("number")
         base_branch = pr_data.get("baseRefName")
+
+        # --- Validation Guard ---
+        import re
+        rules = get_full_commit_rules()
+        commit_regex = rules["message_regex"]
+        if title and not re.match(commit_regex, title):
+             return Result(status="error", message=f"Merged title '{title}' violates commit policy: {commit_regex}", workflow=WORKFLOW)
 
         # Execute Merge
         args = ["pr", "merge", str(number), "--squash", "--delete-branch"]
