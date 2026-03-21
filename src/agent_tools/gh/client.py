@@ -1,12 +1,14 @@
 import subprocess
 from typing import List, Union
 from agent_tools.git.types import GitResult
+from agent_tools.context import REPO_CWD
 
-def run_gh(args: Union[List[str], str], check: bool = False) -> GitResult:
+def run_gh(args: Union[List[str], str], check: bool = False, cwd: str = None) -> GitResult:
     """Wrapper for GitHub CLI commands returning unified GitResult."""
     cmd = ["gh"] + args if isinstance(args, list) else ["gh"] + args.split()
+    use_cwd = cwd or REPO_CWD.get()
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, check=check)
+        res = subprocess.run(cmd, capture_output=True, text=True, check=check, cwd=use_cwd)
         return GitResult(
             returncode=res.returncode,
             stdout=res.stdout,

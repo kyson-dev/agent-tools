@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from typing import Literal
 
 from agent_tools.protocol import Result
 from agent_tools.git import (
@@ -8,73 +9,99 @@ from agent_tools.git import (
     GitCommandError,
 )
 from agent_tools.gh import run_gh
+from agent_tools.config import get_full_commit_rules
 
 WORKFLOW = "gh_pr_create"
 
 
-def sense() -> Result:
-    """Stage 1: Extract context and hand off for description synthesis."""
-    try:
-        branch_info = get_branch_context(refresh=True)
-
-        if branch_info.is_detached:
-            return Result(
-                status="error",
-                message="HEAD is detached. Please checkout a branch before creating a PR.",
+def _init_sync() -> Result:
+    return Result(
+                status="handoff",
+                message="PR creation initiated. Ensuring branch is synchronized.",
                 workflow=WORKFLOW,
+                next_step="sync_branch",
+                resume_point="create",
+                instruction="\
+                    1. **SYNC**: Run `git_sync_flow` to ensure your branch is pushed and aligned. \
+                    2. **RESUME**: Call `gh_pr_create_flow(point=\"sense\")` after sync completes.",
             )
 
-        repo_info = get_repo_context(refresh=True)
+def _check_safety_guards() -> Optional[Result]:
+    branch_info = get_branch_context(refresh=True)
 
-        if not repo_info.owner or not repo_info.repo:
-            return Result(
-                status="error",
-                message="Cannot determine repository owner/name from remote URL.",
-                workflow=WORKFLOW,
-            )
+    if branch_info.is_detached:
+        return Result(
+            status="error",
+            message="HEAD is detached. Please checkout a branch before creating a PR.",
+            workflow=WORKFLOW,
+        )
 
-        base = repo_info.default_branch
-        if not base:
+    repo_info = get_repo_context(refresh=True)
+
+    if not repo_info.owner or not repo_info.repo:
+        return Result(
+            status="error",
+            message="Cannot determine repository owner/name from remote URL.",
+            workflow=WORKFLOW,
+        )
+
+    base = repo_info.default_branch
+    if not base:
             return Result(
                 status="error",
                 message="Unable to determine the base branch. Push your branch first.",
                 workflow=WORKFLOW,
             )
 
-        commits = get_commits_ahead(base)
-        if not commits:
-            return Result(
-                status="error",
-                message=f"No commits found ahead of '{base}'.",
-                workflow=WORKFLOW,
-            )
-
+    commits = get_commits_ahead(base)
+    if not commits:
         return Result(
-            status="handoff",
-            message="Context extracted. Please synthesize PR title and body.",
+            status="error",
+            message=f"No commits found ahead of '{base}'.",
             workflow=WORKFLOW,
-            next_step="synthesize_description",
-            resume_point="create",
-            instruction="1. Analyze the `commits` in `details`. 2. Synthesize a concise PR 'title' and 'body'. "
-                        "The PR 'title' MUST follow project commit conventions (e.g., feat: ..., fix: ...) as it will be the merge commit message. "
-                        "3. Call `gh_pr_create_execute(repo_path=\".\", draft_json='{\"title\": \"...\", \"body\": \"...\"}')`.",
-            details={
-                "owner": repo_info.owner,
-                "repo": repo_info.repo,
-                "head": branch_info.current_branch,
-                "base": base,
-                "commits": [asdict(c) for c in commits],
-            },
         )
 
-    except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW)
-    except Exception as e:
-        return Result(status="error", message=f"PR sense error: {str(e)}", workflow=WORKFLOW)
+def _sense() -> Result:
+    
+    res = _check_safety_guards()
+    if res:
+        return res
 
+    # Provide rules for message synthesis
+    rules = get_full_commit_rules()
+    commits = get_commits_ahead(base)
 
-def create(title: str, body: str) -> Result:
+    return Result(
+        status="handoff",
+        message="Context extracted. Please synthesize PR title and body.",
+        workflow=WORKFLOW,
+        next_step="synthesize_description",
+        resume_point="create",
+        instruction=(
+            "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
+            "2. Analyze `commits` in `details`. "
+            "3. Call `gh_pr_create_flow(point=\"create\", draft_json_str='{\"title\": \"...\", \"body\": \"...\"}')`."
+        ),
+        details={
+            "owner": repo_info.owner,
+            "repo": repo_info.repo,
+            "head": branch_info.current_branch,
+            "base": base,
+            "commits": [asdict(c) for c in commits],
+            "commit_rules": rules
+        },
+    )
+    
+def _create(draft_json_str: str) -> Result:
     """Stage 2: Receive synthesis and execute PR creation via gh CLI."""
+    import json
+    try:
+        data = json.loads(draft_json)
+        title = data.get("title")
+        body = data.get("body")
+    except json.JSONDecodeError:
+        return Result(status="error", message="Invalid draft_json format.", workflow=WORKFLOW)
+
     if not title or not body:
         return Result(status="error", message="Title and body are required for PR creation.", workflow=WORKFLOW)
 
@@ -113,17 +140,16 @@ def create(title: str, body: str) -> Result:
     except Exception as e:
         return Result(status="error", message=f"Failed to execute gh pr create: {str(e)}", workflow=WORKFLOW)
 
+def gh_pr_create_flow(point: Literal["init", "sense", "create"]="init", draft_json_str: str = "") -> Result:
+    try:
+        if point == "init":
+            return _init_sync()
+        elif point == "sense":
+            return _sense()
+        elif point == "create":
+            return _create(draft_json_str)
 
-def run_pr_create_workflow(mode: str, draft_json: str = None) -> Result:
-    if mode == "sense":
-        return sense()
-    elif mode == "create":
-        if not draft_json:
-            return Result(status="error", message="mode='create' requires draft_json.", workflow=WORKFLOW)
-        import json
-        try:
-            data = json.loads(draft_json)
-            return create(title=data.get("title"), body=data.get("body"))
-        except json.JSONDecodeError:
-            return Result(status="error", message="Invalid draft_json format.", workflow=WORKFLOW)
-    return Result(status="error", message=f"Invalid mode: '{mode}'.", workflow=WORKFLOW)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"PR create error: {str(e)}", workflow=WORKFLOW)

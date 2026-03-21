@@ -17,8 +17,10 @@ def get_base_dir() -> Path:
     return Path(__file__).parent.parent.parent
 
 def get_rules_path() -> Path:
+    from agent_tools.context import REPO_CWD
+    cwd = REPO_CWD.get() or os.getcwd()
     # 1. PRIORITY 1: Project-level rules (.agent/configs/rules.yaml)
-    project_rules = Path(os.getcwd()) / ".agent" / "configs" / "rules.yaml"
+    project_rules = Path(cwd) / ".agent" / "configs" / "rules.yaml"
     if project_rules.exists():
         return project_rules
         
@@ -31,9 +33,11 @@ def get_rules_path() -> Path:
     return Path(__file__).parent / "configs" / "rules.yaml"
 
 def get_schema_path() -> Path:
+    from agent_tools.context import REPO_CWD
+    cwd = REPO_CWD.get() or os.getcwd()
     # Same cascading logic for schema or keep it tool-internal?
     # Usually schema is tied to the tool version, but we'll follow similar pattern
-    project_schema = Path(os.getcwd()) / ".agent" / "configs" / "schema.json"
+    project_schema = Path(cwd) / ".agent" / "configs" / "schema.json"
     if project_schema.exists():
         return project_schema
     return Path(__file__).parent / "configs" / "schema.json"
@@ -56,14 +60,11 @@ def validate_rules(rules: Dict[str, Any]) -> None:
         try:
             validate(instance=rules, schema=schema)
         except ValidationError as e:
-            # We can log this but we probably shouldn't crash the whole run if 
-            # strict validation fails. For now we will allow it, or raise it
-            # depending on strictness requirements. Let's not raise to not break L3.
-            pass
+            logger.warning(f"rules.yaml validation failed: {e.message}")
 
-def load_rules() -> Dict[str, Any]:
-    """Load and optionally validate rules.yaml."""
-    rules_path = get_rules_path()
+@functools.lru_cache(maxsize=32)
+def _load_rules_cached(rules_path_str: str) -> Dict[str, Any]:
+    rules_path = Path(rules_path_str)
     logger.info(f"Attempting to load rules from: {rules_path.absolute()}")
     if not rules_path.exists():
         return {}
@@ -74,7 +75,13 @@ def load_rules() -> Dict[str, Any]:
             validate_rules(rules)
             return rules
     except Exception as e:
+        logger.error(f"Failed to load rules: {e}")
         return {}
+
+def load_rules() -> Dict[str, Any]:
+    """Load and optionally validate rules.yaml."""
+    rules_path = get_rules_path()
+    return _load_rules_cached(str(rules_path.absolute()))
 
 def get_protected_branches() -> list[str]:
     """Get protected branches, providing safe defaults."""
@@ -150,3 +157,30 @@ def get_allow_direct_actions_to_protected() -> bool:
         return rules["git"]["safety"].get("allow_direct_actions_to_protected", False)
     except KeyError:
         return False
+
+def get_release_version_files() -> list[str]:
+    """Get the list of files to update for a release."""
+    rules = load_rules()
+    try:
+        return rules["git"]["release"]["version_files"]
+    except KeyError:
+        return []
+
+def get_release_tag_regex() -> str:
+    """Get the regex pattern for validating release tags."""
+    rules = load_rules()
+    try:
+        return rules["git"]["release"]["tag_regex"]
+    except KeyError:
+        return "^v\\d+\\.\\d+\\.\\d+$"  # Default to v1.2.3 format
+
+def get_full_commit_rules() -> Dict[str, Any]:
+    """Returns the comprehensive set of commit rules for AI consumption."""
+    return {
+        "allowed_types": get_commit_allowed_types(),
+        "message_regex": get_commit_message_regex(),
+        "subject_max_length": get_commit_subject_max_length(),
+        "body_wrap_length": get_commit_body_wrap_length(),
+        "grouping_signals": get_commit_grouping_signals(),
+        "max_groups": get_commit_max_groups(),
+    }

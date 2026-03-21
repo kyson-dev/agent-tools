@@ -48,14 +48,14 @@ def _pause_for_conflict(current_point: str) -> Result:
         resume_point=current_point,
         instruction=f"1. Resolve conflicts in files listed in `details`. "
                     f"2. Run `git add <file>` for each resolved file. "
-                    f"3. Resume the pipeline by calling `git_sync(repo_path=\".\", point=\"{current_point}\")`.",
+                    f"3. Resume the pipeline by calling `git_sync_flow(point=\"{current_point}\")`.",
         details={
             "conflicted_files": conflicts_res.stdout.strip().splitlines(),
         },
     )
 
 
-def _handle_abort() -> Result:
+def _abort() -> Result:
     """Abort whichever git operation is currently in progress."""
     op = _get_op_status()
     if op is None:
@@ -72,13 +72,7 @@ def _handle_abort() -> Result:
         return Result(status="success", message=f"{op.capitalize()} aborted. Environment rolled back.", workflow=WORKFLOW)
     return Result(status="error", message=f"Abort failed: {res.stderr}", workflow=WORKFLOW)
 
-
-# ---------------------------------------------------------------------------
-# Pipeline
-# ---------------------------------------------------------------------------
-
-def run_sync_workflow(
-    mode: Literal["sync", "abort"] = "sync",
+def _sync(
     point: Literal["init", "current_rebase", "rebase_main", "push"] = "init",
 ) -> Result:
     """
@@ -91,15 +85,9 @@ def run_sync_workflow(
         push           → force-with-lease push
 
     Args:
-        mode:  "sync" to run the pipeline, "abort" to cancel an in-progress rebase.
         point: which stage to resume from (set by a previous paused Result).
     """
     try:
-        # ------ Abort (independent of the pipeline) ------
-        # Kept inside the try block so any unexpected crash in _handle_abort
-        # is captured and returned as a JSON error, not a raw traceback.
-        if mode == "abort":
-            return _handle_abort()
         # ====== Stage 1: Init ======
         if point == "init":
             # 1a. Pre-condition guard: detect any in-progress git operation.
@@ -256,3 +244,14 @@ def run_sync_workflow(
             message=f"Internal orchestrator error: {type(e).__name__}: {e}",
             workflow=WORKFLOW,
         )
+
+def git_sync_flow(point: Literal["init", "current_rebase", "rebase_main", "push", "abort"]="init") -> Result:
+    try:
+        if point == "abort":
+            return _abort()
+        else:
+            return _sync(point)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"Git sync error: {str(e)}", workflow=WORKFLOW)

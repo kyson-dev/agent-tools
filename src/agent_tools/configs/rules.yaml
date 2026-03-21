@@ -35,6 +35,11 @@ git:
       - change_type_affinity
       - shared_purpose
 
+  # Automated Release Workflow Settings
+  release:
+    # Regex to validate the Tag name (Semantic Versioning)
+    tag_regex: "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+
   # Repository Safety Policies
   safety:
     protected_branches:

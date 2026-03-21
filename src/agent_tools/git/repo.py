@@ -87,3 +87,14 @@ def get_repo_context(refresh: bool = False) -> RepoContext:
         default_branch=default_branch,  # None if it can't be determined
         all_remotes=remote_names,
     )
+
+def get_latest_tag() -> Optional[str]:
+    """Returns the most recent tag reachable from HEAD.
+    
+    Returns:
+        The tag name if found, otherwise None.
+    """
+    res = run_git(["describe", "--tags", "--abbrev=0"])
+    if res.ok:
+        return res.stdout.strip()
+    return None

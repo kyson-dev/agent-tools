@@ -13,12 +13,8 @@ from agent_tools.git import (
 )
 from agent_tools.config import (
     get_protected_branches,
-    get_commit_allowed_types,
-    get_commit_message_regex,
-    get_commit_subject_max_length,
-    get_commit_body_wrap_length,
-    get_commit_grouping_signals,
-    get_allow_direct_actions_to_protected
+    get_allow_direct_actions_to_protected,
+    get_full_commit_rules
 )
 
 WORKFLOW = "git_commit"
@@ -51,7 +47,7 @@ def _check_preconditions() -> Optional[Result]:
     return None
 
 
-def sense() -> Result:
+def _sense() -> Result:
     try:
         guard = _check_preconditions()
         if guard:
@@ -80,13 +76,7 @@ def sense() -> Result:
                 details={"changed_files": []},
             )
 
-        rules_context = {
-            "allowed_types": get_commit_allowed_types(),
-            "message_regex": get_commit_message_regex(),
-            "subject_max_length": get_commit_subject_max_length(),
-            "body_wrap_length": get_commit_body_wrap_length(),
-            "grouping_signals": get_commit_grouping_signals(),
-        }
+        rules_context = get_full_commit_rules()
 
         return Result(
             status="handoff",
@@ -94,15 +84,17 @@ def sense() -> Result:
             workflow=WORKFLOW,
             next_step="build_plan",
             resume_point="plan",
-            instruction="1. Read `details` to understand changed files and project rules. "
-                    "2. Construct a valid JSON commit plan following `rules_context` (allowed types, length limits). "
-                    "3. Execute `git_commit_execute(repo_path=\".\", plan_json='...')` to apply changes.",
+            instruction=(
+                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
+                "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
+                "3. Execute `git_commit_flow(point=\"commit\", plan_json_str='{\"commits\": [{\"files\": [\"...\"], \"message\": \"...\"}]}')` with your grouping strategy."
+            ),
             details={
                 "changed_files": [asdict(f) for f in changed_files],
                 "diff_summary": diff_info.diff_summary,
                 "branch_info": asdict(branch_info),
                 "repo_context": asdict(repo_info),
-                "rules_context": rules_context,
+                "commit_rules": rules_context,
             },
         )
 
@@ -112,7 +104,7 @@ def sense() -> Result:
         return Result(status="error", message=f"Sense error: {str(e)}", workflow=WORKFLOW)
 
 
-def execute(plan_json_str: str) -> Result:
+def _commit(plan_json_str: str) -> Result:
     try:
         # Guard: pre-conditions before executing any git writes
         guard = _check_preconditions()
@@ -151,12 +143,13 @@ def execute(plan_json_str: str) -> Result:
         return Result(status="error", message=f"Execute error: {str(e)}", workflow=WORKFLOW)
 
 
-def run_commit_workflow(mode: str, plan_json_str: str = None) -> Result:
-    if mode == "sense":
-        return sense()
-    elif mode == "plan":
-        if not plan_json_str:
-            return Result(status="error", message="mode='plan' requires a plan_json_str argument.", workflow=WORKFLOW)
-        return execute(plan_json_str)
-    else:
-        return Result(status="error", message=f"Invalid mode: '{mode}'. Expected 'sense' or 'plan'.", workflow=WORKFLOW)
+def git_commit_flow(point: Literal["sense", "commit"]="sense", plan_json_str: str = "") -> Result:
+    try:
+        if point == "sense":
+            return _sense()
+        elif point == "commit":
+            return _commit(plan_json_str)
+    except GitCommandError as e:
+        return Result(status="error", message=str(e), workflow=WORKFLOW)
+    except Exception as e:
+        return Result(status="error", message=f"Git commit flow error: {str(e)}", workflow=WORKFLOW)

@@ -34,6 +34,16 @@ git:
       - import_dependency
       - change_type_affinity
       - shared_purpose
+  
+  # Automated Release Workflow Settings
+  release:
+    # Files that should be updated during the release process (e.g. version bump)
+    # If empty, the Agent will try to infer them or ask the user.
+    version_files:
+      - "pyproject.toml"
+
+    # Regex to validate the Tag name (Semantic Versioning)
+    tag_regex: "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
 
   # Repository Safety Policies
   safety:
