@@ -12,6 +12,7 @@
 - 移除所有主动探测逻辑。
 - 移除命令行参数解析（`argparse`）。
 - 简化 `_with_cwd` 包装器，仅依赖环境变量或 CWD。
+- **清理 API**: 完全移除工具函数中的 `repo_path` 参数，强制调用方依赖环境配置。
 
 ## 2. 详细设计 (Detailed Design)
 
@@ -23,11 +24,11 @@
 async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
     # 1. 优先获取环境变量
     final_path = os.environ.get("AGENT_TOOLS_REPO_PATH")
-    
+
     # 2. 如果环境变量缺失，回退到当前进程工作目录
     if not final_path:
         final_path = os.getcwd()
-    
+
     # 3. 注入上下文并执行业务逻辑
     token = REPO_CWD.set(os.path.abspath(final_path))
     try:
@@ -36,9 +37,13 @@ async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
         REPO_CWD.reset(token)
 ```
 
-**注意**: 所有工具函数（如 `git_commit_flow`）中的 `repo_path` 参数将被标记为废弃（Deprecated）或直接移除，不再作为路径解析的输入。
+### 2.2 工具函数签名更新 (Breaking Changes)
 
-### 2.2 `main` 函数简化
+所有 `@mcp.tool()` 装饰的函数将进行以下变更：
+- **移除 `repo_path` 参数**: 彻底从函数签名中删除该参数。
+- **更新 Docstrings**: 在文档字符串中明确标注“该工具在环境变量 `AGENT_TOOLS_REPO_PATH` 定义的仓库中运行”。
+
+### 2.3 `main` 函数与环境要求
 
 ```python
 def main():
@@ -46,19 +51,21 @@ def main():
     mcp.run(transport="stdio")
 ```
 
-### 2.3 清理范围
-
-- 移除 `import argparse`。
-- 移除 `sys.path.insert` 动态路径注入逻辑（应由正确的包安装处理）。
-- 更新所有 `@mcp.tool()` 定义，移除或忽略 `repo_path` 参数。
+**环境说明**:
+- 移除 `sys.path.insert` 逻辑。
+- 要求在开发/运行环境中通过 `pip install -e .` 安装包，或者正确设置 `PYTHONPATH` 环境变量。
 
 ## 3. 兼容性与风险 (Compatibility & Risks)
 
 - **破坏性变更**: 显式依赖命令行参数 `-r` 或 `--repository` 的启动方式将失效。
-- **风险**: 如果用户在非 Git 目录下且未设置环境变量时运行，工具将尝试在当前目录执行 Git 命令并报错。这是预期行为，符合“显示失败”的原则。
+- **API 变更**: 任何尝试传递 `repo_path` 参数的 MCP 调用都将失败。这是为了强制执行单一路径源原则。
+- **风险**: 如果用户在非 Git 目录下且未设置环境变量时运行，工具将尝试在当前目录执行 Git 命令并报错。
 
 ## 4. 验收标准 (Acceptance Criteria)
 
-- [ ] `mcp_server.py` 代码量显著减少。
-- [ ] 环境变量 `AGENT_TOOLS_REPO_PATH` 能正确驱动工具运行。
-- [ ] 现有的自动化测试在设置正确环境变量后依然通过。
+- [ ] `mcp_server.py` 移除 `argparse` 和所有探测逻辑。
+- [ ] 所有工具函数均不再包含 `repo_path` 参数。
+- [ ] **回退验证**: 在未设置 `AGENT_TOOLS_REPO_PATH` 时，验证工具正确回退至 `os.getcwd()`。
+- [ ] **注入验证**: 设置 `AGENT_TOOLS_REPO_PATH` 后，验证工具在指定路径运行。
+- [ ] 现有的自动化测试在适配新签名后全部通过。
+
