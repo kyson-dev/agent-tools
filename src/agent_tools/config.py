@@ -93,7 +93,7 @@ def load_rules() -> dict[str, Any]:
 
     # 2. Layer user overrides
     user_rules_path = get_rules_path()
-    if user_rules_path and user_rules_path.exists():
+    if user_rules_path and user_rules_path.is_file():
         try:
             with open(user_rules_path, encoding="utf-8") as f:
                 user_overrides = yaml.safe_load(f) or {}

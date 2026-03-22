@@ -11,9 +11,8 @@ class GitTransaction:
                 txn.rollback()
                 return error_result
 
-    The transaction snapshots HEAD on entry. If __enter__ cannot capture the
-    initial HEAD (e.g. empty repo with no commits), it raises GitCommandError
-    immediately — it is unsafe to proceed without a rollback anchor.
+    The transaction snapshots HEAD on entry if it exists.
+    If repo is fresh (no commits), initial_head remains None.
 
     The rollback() method is fire-and-forget: individual rollback commands may
     fail silently (best-effort), but it will always attempt to restore HEAD.
@@ -25,11 +24,10 @@ class GitTransaction:
         self.aborted: bool = False
 
     def __enter__(self) -> "GitTransaction":
-        # Record initial HEAD — this is the rollback anchor. Fail loudly if
-        # we cannot capture it (e.g. brand-new repo with no commits yet).
-        res = run_git(["rev-parse", "HEAD"])
-        res.raise_on_error("Cannot capture HEAD snapshot for transaction rollback")
-        self.initial_head = res.stdout.strip()
+        # Record initial HEAD — this is the rollback anchor.
+        res = run_git(["rev-parse", "--verify", "HEAD"])
+        if res.ok:
+            self.initial_head = res.stdout.strip()
 
         # Create a dangling stash object as workspace snapshot (no-op if clean).
         snapshot_res = run_git(["stash", "create"])
@@ -56,6 +54,10 @@ class GitTransaction:
         # Hard-reset to the pre-transaction HEAD.
         if self.initial_head:
             run_git(["reset", "--hard", self.initial_head])
+        else:
+            # If repo was empty, just clear the index.
+            # Do NOT use read-tree --empty as it may delete untracked files.
+            run_git(["reset"])
 
         # Restore the workspace snapshot if we created one.
         if self.snapshot_hash:

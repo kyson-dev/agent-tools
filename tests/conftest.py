@@ -46,6 +46,22 @@ def temp_git_repo(tmp_path):
         ["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True
     )
 
+    # Create dummy rules to avoid loader issues
+    rules_dir = repo_path / ".agent" / "configs"
+    rules_dir.mkdir(parents=True)
+    (rules_dir / "rules.yaml").write_text("git: {}\n")
+
+    # Initial commit to ensure HEAD exists
+    (repo_path / ".gitkeep").touch()
+    subprocess.run(
+        ["git", "add", ".gitkeep", ".agent/configs/rules.yaml"],
+        cwd=repo_path,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "chore: initial commit"], cwd=repo_path, check=True
+    )
+
     # Set context
     token = REPO_CWD.set(str(repo_path))
     yield GitTester(repo_path)
