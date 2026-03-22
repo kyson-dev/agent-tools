@@ -6,7 +6,6 @@ from typing import Literal
 
 from agent_tools.core.models.workflow import Result
 from agent_tools.infrastructure.clients.git import (
-    GitCommandError,
     get_branch_context,
     get_commits_ahead,
     get_latest_tag,
@@ -16,6 +15,8 @@ from agent_tools.infrastructure.clients.git import (
 from agent_tools.infrastructure.config.manager import (
     get_full_commit_rules,
     get_release_tag_regex,
+    get_protected_branches,
+    get_allow_direct_actions_to_protected,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,9 +25,22 @@ WORKFLOW = "git_release"
 
 def _check_safety_guards() -> Result | None:
     """Strict pre-conditions for releasing."""
-    repo_info = get_repo_context()
-    branch_info = get_branch_context(refresh=True)
 
+    # 1. 游离分支
+    branch_info = get_branch_context(refresh=True)
+    if branch_info.is_detached:
+        return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
+
+    # 2. 没有remote origin
+    repo_info = get_repo_context(refresh=True)
+    if not repo_info.primary_remote:
+        return Result(status="error", message="No remote origin.", workflow=WORKFLOW)
+
+    # 3. 默认分支不存在
+    if not repo_info.default_branch:
+        return Result(status="error", message="Missing branch information.", workflow=WORKFLOW)
+
+    # 4. 必须在默认分支
     if branch_info.current_branch != repo_info.default_branch:
         return Result(
             status="error",
@@ -34,41 +48,50 @@ def _check_safety_guards() -> Result | None:
             workflow=WORKFLOW,
             instruction=f"Switch to '{repo_info.default_branch}' and sync before releasing.",
         )
-
-    if branch_info.is_dirty:
-        return Result(
-            status="error",
-            message="Working tree is dirty.",
-            workflow=WORKFLOW,
-            instruction="Commit or stash changes before starting the release flow.",
-        )
-
     return None
 
 
 def _handle_init() -> Result:
     """Stage 0: Initialization and Sync."""
-    return Result(
-        status="handoff",
-        message="Release initialized.",
-        workflow=WORKFLOW,
-        next_step="SYNC_BEFORE_RELEASE",
-        resume_point="sense",
-        instruction=(
-            "【ACTION】\n"
-            "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
-            "2. After sync, call 'git_release_flow' with point='sense'."
-        ),
-    )
+
+    safety_guard_res = _check_safety_guards()
+    if safety_guard_res:
+        return safety_guard_res
+
+    # 工作区不干净、本地领先远程
+    branch_info = get_branch_context()
+    if branch_info.is_dirty or branch_info.ahead > 0:
+        return Result(
+            status="handoff",
+            message="Release initialized.",
+            workflow=WORKFLOW,
+            next_step="SYNC_BEFORE_RELEASE",
+            resume_point="sense",
+            instruction=(
+                "【ACTION】\n"
+                "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
+                "2. After sync, call 'git_release_flow' with point='sense'."
+            ),
+        )
+
+    return _handle_sense()
+
+
+def _is_protected_branch() -> bool:
+    branch_info = get_branch_context()
+    if (
+        branch_info.current_branch
+        and branch_info.current_branch in get_protected_branches()
+        and not get_allow_direct_actions_to_protected()
+    ):
+        return True
+
+    return False
 
 
 def _handle_sense() -> Result:
     """Stage 1: Context gathering and planning."""
-    guard = _check_safety_guards()
-    if guard:
-        return guard
 
-    branch_info = get_branch_context()  # Ensure branch_info is available for is_protected check
     latest_tag = get_latest_tag()
     if latest_tag:
         commits = get_commits_ahead(latest_tag)
@@ -77,12 +100,17 @@ def _handle_sense() -> Result:
         first_commit = res.stdout.strip()
         commits = get_commits_ahead(f"{first_commit}^!") if first_commit else []
 
-    # Detect if current default branch is protected
-    from agent_tools.infrastructure.config.manager import get_protected_branches, get_allow_direct_actions_to_protected
+    # if commits list is none, return no commits to release
+    if not commits:
+        return Result(
+            status="error",
+            message="No commits to release.",
+            workflow=WORKFLOW,
+            instruction="No commits to release.",
+        )
 
-    is_protected = (
-        branch_info.current_branch in get_protected_branches() and not get_allow_direct_actions_to_protected()
-    )
+    # Detect if current default branch is protected
+    is_protected = _is_protected_branch()
 
     return Result(
         status="handoff",
@@ -97,10 +125,11 @@ def _handle_sense() -> Result:
             "3. If version bump is needed:\n"
             f"   - **IF PROTECTED (is_protected={is_protected})**: Use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
             f"   - **ELSE**: Update and commit directly using 'git_commit_flow'.\n"
-            "4. Finalize with 'git_release_flow' (point='release', tag_json_str='{\"tag_name\": \"vX.Y.Z\"}')."
+            "4. Finalize with 'git_release_flow' (point='release', tag_json_str=formatted according to 'details.json_format)."
         ),
         constraints=[
             "Tag MUST match the regex in details.",
+            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
             "Do NOT proceed if version files and git history are out of sync.",
         ],
         details={
@@ -123,7 +152,7 @@ def _handle_release(tag_json_str: str) -> Result:
     try:
         data = json.loads(tag_json_str)
         name = data.get("name")
-        message = data.get("message") or f"Release {name}"
+        message = data.get("message")
     except json.JSONDecodeError:
         return Result(
             status="error",
@@ -132,8 +161,8 @@ def _handle_release(tag_json_str: str) -> Result:
             instruction="Fix the JSON format and retry.",
         )
 
-    if not name:
-        return Result(status="error", message="Missing 'name'.", workflow=WORKFLOW)
+    if not name or not message:
+        return Result(status="error", message="Missing 'name' or 'message'.", workflow=WORKFLOW)
 
     tag_regex = get_release_tag_regex()
     if not re.match(tag_regex, name):
@@ -143,47 +172,31 @@ def _handle_release(tag_json_str: str) -> Result:
             workflow=WORKFLOW,
         )
 
-    guard = _check_safety_guards()
-    if guard:
-        return guard
+    # Create Annotated Tag
+    run_git(["tag", "-a", name, "-m", message]).raise_on_error("Tag creation failed")
+    repo_info = get_repo_context()
+    remote = repo_info.primary_remote
+    if not remote:
+        return Result(status="error", message="No remote origin.", workflow=WORKFLOW)
 
-    try:
-        # Create Annotated Tag
-        run_git(["tag", "-a", name, "-m", message]).raise_on_error("Tag creation failed")
-        repo_info = get_repo_context()
-        remote = repo_info.primary_remote
-        if not remote:
-            return Result(
-                status="error",
-                message="No remote configured for push.",
-                workflow=WORKFLOW,
-            )
-
-        # Push HEAD and tag atomically
-        res = run_git(["push", remote, "--atomic", "HEAD", name])
-        if not res.ok:
-            # Cleanup tag if push failed to allow retry
-            run_git(["tag", "-d", name])
-            return Result(
-                status="error",
-                message=f"Atomic push failed: {res.stderr}",
-                workflow=WORKFLOW,
-                instruction="Investigate the push error (e.g., remote tag already exists) and retry.",
-            )
-
-        return Result(
-            status="success",
-            message=f"Release {name} published successfully.",
-            workflow=WORKFLOW,
-            details={"tag": name},
-        )
-    except GitCommandError as e:
+    # Push HEAD and tag atomically
+    res = run_git(["push", remote, "--atomic", "HEAD", name])
+    if not res.ok:
+        # Cleanup tag if push failed to allow retry
+        run_git(["tag", "-d", name])
         return Result(
             status="error",
-            message=f"Git error during release: {e.stderr}",
+            message=f"Atomic push failed: {res.stderr}",
             workflow=WORKFLOW,
-            instruction="Resolve the git issue and retry.",
+            instruction="Investigate the push error (e.g., remote tag already exists) and retry.",
         )
+
+    return Result(
+        status="success",
+        message=f"Release {name} published successfully.",
+        workflow=WORKFLOW,
+        details={"tag": name},
+    )
 
 
 def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_json_str: str = "") -> Result:

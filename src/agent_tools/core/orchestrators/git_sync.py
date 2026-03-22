@@ -30,6 +30,24 @@ def _get_op_status() -> str | None:
     return None
 
 
+def _check_safety_guards() -> Result | None:
+    # 1. 游离分支
+    branch_info = get_branch_context(refresh=True)
+    if branch_info.is_detached:
+        return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
+
+    # 2. 没有remote origin
+    repo_info = get_repo_context(refresh=True)
+    if not repo_info.primary_remote:
+        return Result(status="error", message="No remote origin.", workflow=WORKFLOW)
+
+    # 3. 有当前分支和默认分支存在
+    if not branch_info.current_branch or not repo_info.default_branch:
+        return Result(status="error", message="Missing branch information.", workflow=WORKFLOW)
+
+    return None
+
+
 def _pause_for_conflict(current_point: str) -> Result:
     """Standardized recovery instruction for rebase conflicts."""
     conflicts_res = run_git(["diff", "--name-only", "--diff-filter=U"])
@@ -54,8 +72,25 @@ def _pause_for_conflict(current_point: str) -> Result:
     )
 
 
+def _is_protected_branch() -> bool:
+    branch_info = get_branch_context()
+    if not branch_info.current_branch:
+        # If current branch is unknown, it cannot be a protected branch.
+        # This case should ideally be caught by _check_safety_guards,
+        # but this provides an additional safeguard.
+        return False
+    if branch_info.current_branch in get_protected_branches() and not get_allow_direct_actions_to_protected():
+        return True
+    return False
+
+
 def _handle_init() -> Result:
     """Stage 1: Pre-flight checks."""
+
+    safety_guard_res = _check_safety_guards()
+    if safety_guard_res:
+        return safety_guard_res
+
     op = _get_op_status()
     if op == "rebase":
         res = run_git(["rebase", "--continue"])
@@ -69,17 +104,8 @@ def _handle_init() -> Result:
             instruction="Please resolve merge manually or run 'git_sync_flow(point=\"abort\")'.",
         )
 
-    branch_info = get_branch_context(refresh=True)
-    if branch_info.is_detached:
-        return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
-
-    is_protected = False
-    if (
-        branch_info.current_branch
-        and branch_info.current_branch in get_protected_branches()
-        and not get_allow_direct_actions_to_protected()
-    ):
-        is_protected = True
+    is_protected = _is_protected_branch()
+    branch_info = get_branch_context()
 
     if branch_info.is_dirty:
         if is_protected:
@@ -96,10 +122,6 @@ def _handle_init() -> Result:
             resume_point="init",
             instruction="Please using 'git_commit_flow' to commit your changes before syncing.",
         )
-
-    repo_info = get_repo_context(refresh=True)
-    if not repo_info.primary_remote:
-        return Result(status="error", message="No remote configured.", workflow=WORKFLOW)
 
     return _handle_current_rebase()
 
@@ -130,12 +152,10 @@ def _handle_rebase_main() -> Result:
         branch_info = get_branch_context()
         repo_info = get_repo_context()
 
-        if (
-            repo_info.default_branch
-            and repo_info.primary_remote
-            and branch_info.current_branch
-            and branch_info.current_branch != repo_info.default_branch
-        ):
+        if not repo_info.default_branch:
+            return Result(status="error", message="Default branch unknown.", workflow=WORKFLOW)
+
+        if branch_info.current_branch != repo_info.default_branch:
             target = f"{repo_info.primary_remote}/{repo_info.default_branch}"
             res = run_git(["rebase", target])
             if not res.ok:
@@ -147,41 +167,18 @@ def _handle_rebase_main() -> Result:
 def _handle_push() -> Result:
     """Stage 4: Safe push."""
     branch_info = get_branch_context()
-    if not branch_info.current_branch:
-        return Result(status="error", message="Unknown current branch.", workflow=WORKFLOW)
 
-    repo_info = get_repo_context()
-    remote = repo_info.primary_remote
-    if not remote:
-        return Result(status="error", message="No remote configured for push.", workflow=WORKFLOW)
+    is_protected = _is_protected_branch()
 
-    is_protected = False
-    if (
-        branch_info.current_branch
-        and branch_info.current_branch in get_protected_branches()
-        and not get_allow_direct_actions_to_protected()
-    ):
-        is_protected = True
+    if branch_info.ahead == 0:
+        return Result(
+            status="success",
+            message="Local branch is already up-to-date with remote.",
+            workflow=WORKFLOW,
+        )
 
     if branch_info.upstream:
-        # 这里保护如果本地领先不能提交，如果是相同的话提示成功，如果落后的话不应该存在返回错误吧
-        if is_protected:
-            if branch_info.ahead == 0:
-                return Result(
-                    status="success",
-                    message="Local branch is already up-to-date with remote.",
-                    workflow=WORKFLOW,
-                )
-            else:
-                return Result(
-                    status="error",
-                    message="Branch is protected.",
-                    workflow=WORKFLOW,
-                    instruction="branch is protected",
-                )
-        push_args = ["push", "--force-with-lease"]
-    else:
-        # 这里保护是肯定不能提交的
+        # 这里保护分支本地领先不能提交，如果是相同的话提示成功，如果落后的话不应该存在返回错误吧
         if is_protected:
             return Result(
                 status="error",
@@ -189,6 +186,23 @@ def _handle_push() -> Result:
                 workflow=WORKFLOW,
                 instruction="branch is protected",
             )
+
+        push_args = ["push", "--force-with-lease"]
+    else:
+        # 这里是保护分支是肯定不能提交的
+        if is_protected:
+            return Result(
+                status="error",
+                message="Branch is protected.",
+                workflow=WORKFLOW,
+                instruction="branch is protected",
+            )
+
+        repo_info = get_repo_context()
+        remote = repo_info.primary_remote
+        if not remote or not branch_info.current_branch:
+            return Result(status="error", message="Missing remote or branch info.", workflow=WORKFLOW)
+
         push_args = ["push", "-u", remote, branch_info.current_branch]
 
     res = run_git(push_args)

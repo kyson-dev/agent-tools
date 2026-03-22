@@ -5,7 +5,6 @@ from typing import Literal
 
 from agent_tools.core.models.workflow import Result
 from agent_tools.infrastructure.clients.git import (
-    GitCommandError,
     execute_commit_plan,
     get_branch_context,
     get_diff_summary,
@@ -21,9 +20,9 @@ logger = logging.getLogger(__name__)
 WORKFLOW = "git_commit"
 
 
-def _check_preconditions() -> Result | None:
+def _check_safety_guards() -> Result | None:
     """Pre-condition guards for commit operations."""
-    branch_info = get_branch_context()
+    branch_info = get_branch_context(refresh=True)
 
     if branch_info.is_detached:
         return Result(
@@ -50,7 +49,7 @@ def _check_preconditions() -> Result | None:
 
 def _handle_sense() -> Result:
     """Stage 1: Analyze workspace state without destructive side effects."""
-    guard = _check_preconditions()
+    guard = _check_safety_guards()
     if guard:
         return guard
 
@@ -90,7 +89,7 @@ def _handle_sense() -> Result:
         ),
         constraints=[
             "Do NOT commit files listed in 'risk_files' unless explicitly intended.",
-            "Each commit message MUST follow Conventional Commits.",
+            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
         ],
         details={
             "staged_files": staged,
@@ -114,10 +113,6 @@ def _handle_sense() -> Result:
 
 def _handle_commit(plan_json_str: str) -> Result:
     """Stage 2: Execute the provided commit plan with validation."""
-    guard = _check_preconditions()
-    if guard:
-        return guard
-
     try:
         plan = json.loads(plan_json_str)
     except json.JSONDecodeError:
@@ -129,30 +124,22 @@ def _handle_commit(plan_json_str: str) -> Result:
             instruction="Fix the JSON formatting error and resubmit the plan.",
         )
 
-    try:
-        # execute_commit_plan handles 'git add' for files specified in the plan
-        commit_res = execute_commit_plan(plan)
-        if not commit_res.ok:
-            return Result(
-                status="error",
-                message=f"Commit execution failed: {commit_res.message}",
-                workflow=WORKFLOW,
-                instruction="Investigate the git error. You may need to manually resolve issues.",
-            )
-
-        return Result(
-            status="success",
-            message="Commit plan executed successfully.",
-            workflow=WORKFLOW,
-            details={"commits": commit_res.executed_commits},
-        )
-    except GitCommandError as e:
+    # execute_commit_plan handles 'git add' for files specified in the plan
+    commit_res = execute_commit_plan(plan)
+    if not commit_res.ok:
         return Result(
             status="error",
-            message=f"Git error: {e.stderr}",
+            message=f"Commit execution failed: {commit_res.message}",
             workflow=WORKFLOW,
-            instruction="Fix the underlying git issue and restart the flow.",
+            instruction="Investigate the git error. You may need to manually resolve issues.",
         )
+
+    return Result(
+        status="success",
+        message="Commit plan executed successfully.",
+        workflow=WORKFLOW,
+        details={"commits": commit_res.executed_commits},
+    )
 
 
 def git_commit_flow(point: Literal["sense", "commit"] = "sense", plan_json_str: str = "") -> Result:
