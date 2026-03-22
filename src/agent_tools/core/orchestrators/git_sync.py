@@ -73,19 +73,22 @@ def _handle_init() -> Result:
     if branch_info.is_detached:
         return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
 
+    is_protected = False
     if (
         branch_info.current_branch
         and branch_info.current_branch in get_protected_branches()
         and not get_allow_direct_actions_to_protected()
     ):
-        return Result(
-            status="error",
-            message="Branch is protected.",
-            workflow=WORKFLOW,
-            instruction="Syncing to protected branches is restricted.",
-        )
+        is_protected = True
 
     if branch_info.is_dirty:
+        if is_protected:
+            return Result(
+                status="error",
+                message="Branch is protected.",
+                workflow=WORKFLOW,
+                instruction="Worktree is dirty and branch is protected, please commit your changes for new branch.",
+            )
         return Result(
             status="handoff",
             message="Worktree is dirty.",
@@ -152,9 +155,40 @@ def _handle_push() -> Result:
     if not remote:
         return Result(status="error", message="No remote configured for push.", workflow=WORKFLOW)
 
+    is_protected = False
+    if (
+        branch_info.current_branch
+        and branch_info.current_branch in get_protected_branches()
+        and not get_allow_direct_actions_to_protected()
+    ):
+        is_protected = True
+
     if branch_info.upstream:
+        # 这里保护如果本地领先不能提交，如果是相同的话提示成功，如果落后的话不应该存在返回错误吧
+        if is_protected:
+            if branch_info.ahead == 0:
+                return Result(
+                    status="success",
+                    message="Local branch is already up-to-date with remote.",
+                    workflow=WORKFLOW,
+                )
+            else:
+                return Result(
+                    status="error",
+                    message="Branch is protected.",
+                    workflow=WORKFLOW,
+                    instruction="branch is protected",
+                )
         push_args = ["push", "--force-with-lease"]
     else:
+        # 这里保护是肯定不能提交的
+        if is_protected:
+            return Result(
+                status="error",
+                message="Branch is protected.",
+                workflow=WORKFLOW,
+                instruction="branch is protected",
+            )
         push_args = ["push", "-u", remote, branch_info.current_branch]
 
     res = run_git(push_args)

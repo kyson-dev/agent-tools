@@ -108,8 +108,8 @@ def _handle_sense() -> Result:
             "commits": [asdict(c) for c in commits],
             "is_protected": is_protected,
             "json_format": {
-                "tag_name": "v1.2.3",
-                "tag_message": "Release description...",
+                "name": "v1.2.3",
+                "message": "Release description...",
             },
             "tag_regex": get_release_tag_regex(),
             "commit_rules": get_full_commit_rules(),
@@ -122,9 +122,8 @@ def _handle_release(tag_json_str: str) -> Result:
     """Stage 2: Physical tagging and atomic push."""
     try:
         data = json.loads(tag_json_str)
-        tag_name = data.get("tag_name")
-        # Ensure tag_message is always a string, defaulting to a standard format if not provided
-        tag_message = data.get("tag_message") or f"Release {tag_name}"
+        name = data.get("name")
+        message = data.get("message") or f"Release {name}"
     except json.JSONDecodeError:
         return Result(
             status="error",
@@ -133,14 +132,14 @@ def _handle_release(tag_json_str: str) -> Result:
             instruction="Fix the JSON format and retry.",
         )
 
-    if not tag_name:
-        return Result(status="error", message="Missing 'tag_name'.", workflow=WORKFLOW)
+    if not name:
+        return Result(status="error", message="Missing 'name'.", workflow=WORKFLOW)
 
     tag_regex = get_release_tag_regex()
-    if not re.match(tag_regex, tag_name):
+    if not re.match(tag_regex, name):
         return Result(
             status="error",
-            message=f"Tag '{tag_name}' violates policy: {tag_regex}",
+            message=f"Tag '{name}' violates policy: {tag_regex}",
             workflow=WORKFLOW,
         )
 
@@ -150,7 +149,7 @@ def _handle_release(tag_json_str: str) -> Result:
 
     try:
         # Create Annotated Tag
-        run_git(["tag", "-a", tag_name, "-m", tag_message]).raise_on_error("Tag creation failed")
+        run_git(["tag", "-a", name, "-m", message]).raise_on_error("Tag creation failed")
         repo_info = get_repo_context()
         remote = repo_info.primary_remote
         if not remote:
@@ -161,10 +160,10 @@ def _handle_release(tag_json_str: str) -> Result:
             )
 
         # Push HEAD and tag atomically
-        res = run_git(["push", remote, "--atomic", "HEAD", tag_name])
+        res = run_git(["push", remote, "--atomic", "HEAD", name])
         if not res.ok:
             # Cleanup tag if push failed to allow retry
-            run_git(["tag", "-d", tag_name])
+            run_git(["tag", "-d", name])
             return Result(
                 status="error",
                 message=f"Atomic push failed: {res.stderr}",
@@ -174,9 +173,9 @@ def _handle_release(tag_json_str: str) -> Result:
 
         return Result(
             status="success",
-            message=f"Release {tag_name} published successfully.",
+            message=f"Release {name} published successfully.",
             workflow=WORKFLOW,
-            details={"tag": tag_name},
+            details={"tag": name},
         )
     except GitCommandError as e:
         return Result(
