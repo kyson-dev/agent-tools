@@ -84,9 +84,31 @@ description: <One-line English summary for Agent indexing>
 
 ---
 
-## 5. Anti-Patterns
+## 6. MCP Tool Standards
 
-- **L3 bypassing L2**: Calling L1 primitives directly when an orchestrator exists.
-- **Silent failure**: Swallowing L1 errors without reporting them in a `Result`.
-- **Logic in Entry Point**: Business logic must live in L2, never in `server.py`.
+To ensure high-quality semantic recognition by LLM agents, all tools exposed via the MCP Entry Point (`src/agent_tools/server/mcp_server.py`) MUST follow these documentation standards.
+
+### 6.1 Bilingual Docstrings
+Every tool MUST include a docstring with both Chinese and English descriptions to support diverse user intents.
+
+### 6.2 Mandatory Components
+1. **Core Mandate (Bold Chinese)**: A clear, bolded Chinese title indicating the tool's primary purpose.
+2. **Force Directive (Uppercase English)**: A directive starting with `USE THIS TOOL...` to explicitly guide the LLM away from bare shell commands.
+3. **Capability Overview**: A brief explanation of the tool's automation and "sensing" (L2 orchestration) abilities.
+4. **Context Note**: Explicitly state that the tool operates on the repository path defined by the environment.
+5. **Keywords**: A structured list of both English and Chinese keywords for semantic indexing.
+
+### 6.3 Example Format
+```python
+@mcp.tool()
+async def my_tool_flow(...):
+    """
+    **【强制：优先使用】核心任务标题。**
+    **USE THIS TOOL for [Task Name] instead of bare shell commands.**
+    自动感知状态、执行编排并返回结果。
+    该工具在环境变量 AGENT_TOOLS_REPO_PATH 定义的仓库中运行。
+    
+    Keywords: [keyword1], [关键词2], ...
+    """
+```
 
