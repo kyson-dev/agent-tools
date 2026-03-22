@@ -222,18 +222,17 @@ def _handle_merge(override_json_str: str) -> Result:
     if not branch_info.is_dirty:
         try:
             run_git(["checkout", base_branch])
+            run_git(["branch", "-D", branch_info.current_branch])
             # Only attempt sync if a remote is available
             if remote:
                 sync_res = run_git(["pull", remote, base_branch, "--rebase"])
                 if sync_res.ok:
-                    run_git(["branch", "-D", branch_info.current_branch])
                     cleanup_msg += f" Local branch '{base_branch}' synchronized via '{remote}' and '{branch_info.current_branch}' cleaned up."
                 else:
                     cleanup_msg += f" (Note: Switched to '{base_branch}', but auto-sync via '{remote}' failed: {sync_res.stderr}. You may need to resolve conflicts manually.)"
             else:
-                # No remote found, skip sync but still try cleanup if names match
-                run_git(["branch", "-D", branch_info.current_branch])
-                cleanup_msg += f" Local branch '{base_branch}' selected, but no remote found to sync. Feature branch cleaned up."
+                cleanup_msg += f" (Note: Switched to '{base_branch}', but no remote found to sync.)"
+
         except Exception as e:
             cleanup_msg += f" (Note: Local environment sync or cleanup failed: {e})"
     else:

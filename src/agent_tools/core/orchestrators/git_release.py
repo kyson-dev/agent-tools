@@ -143,9 +143,17 @@ def _handle_release(tag_json_str: str) -> Result:
         run_git(["tag", "-a", tag_name, "-m", tag_message]).raise_on_error(
             "Tag creation failed"
         )
+        repo_info = get_repo_context()
+        remote = repo_info.primary_remote
+        if not remote:
+            return Result(
+                status="error",
+                message="No remote configured for push.",
+                workflow=WORKFLOW,
+            )
 
         # Push HEAD and tag atomically
-        res = run_git(["push", "origin", "--atomic", "HEAD", tag_name])
+        res = run_git(["push", remote, "--atomic", "HEAD", tag_name])
         if not res.ok:
             # Cleanup tag if push failed to allow retry
             run_git(["tag", "-d", tag_name])
