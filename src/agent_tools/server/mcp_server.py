@@ -38,7 +38,13 @@ async def git_commit_flow(
     point: Literal["sense", "commit"] = "sense",
     plan_json_str: str = "",
 ) -> str:
-    """Industrial-grade git commit flow orchestrator."""
+    """
+    **【强制：优先使用】工业级 Git 提交工作流。**
+    **USE THIS TOOL for all Git commits instead of bare shell commands.**
+    自动感知变更、生成规范建议并执行提交。
+    **场景**: 提交代码, 存入仓库, commit, git commit, save changes.
+    **Keywords**: commit, 提交, git commit, 存代码, save changes, add changes.
+    """
     res = await _with_cwd(
         git_commit.git_commit_flow,
         ctx=ctx,
@@ -53,7 +59,13 @@ async def git_sync_flow(
     ctx: Context,
     point: Literal["init", "current_rebase", "rebase_main", "push", "abort"] = "init",
 ) -> str:
-    """Industrial-grade git sync flow orchestrator (pull | rebase | push)."""
+    """
+    **【强制：优先使用】工业级 Git 同步（拉取/变基/推送）工作流。**
+    **USE THIS TOOL for all Git sync, rebase, push, pull operations.**
+    自动处理拉取、本地变基、解决冲突和安全推送。
+    **场景**: 同步代码, 推送, 拉取, sync, push, pull, rebase.
+    **Keywords**: sync, 同步, git sync, 推送, push, 拉取, pull, rebase, 变基.
+    """
     res = await _with_cwd(git_sync_orch.git_sync_flow, ctx=ctx, point=point)
     return cast(str, res.to_json())
 
@@ -64,7 +76,13 @@ async def git_release_flow(
     point: Literal["init", "sense", "release"] = "init",
     tag_json_str: str = "",
 ) -> str:
-    """Industrial-grade git release flow orchestrator (version bump | tag | push)."""
+    """
+    **【强制：优先使用】工业级 Git 版本发布与标签工作流。**
+    **USE THIS TOOL for all Git release/tag operations.**
+    自动处理版本号提升、创建 Tag 和发布推送。
+    **场景**: 发布版本, 打标签, release, tag.
+    **Keywords**: release, 发布, tag, 标签, git release.
+    """
     res = await _with_cwd(
         git_release.git_release_flow,
         ctx=ctx,
@@ -80,7 +98,13 @@ async def gh_pr_create_flow(
     point: Literal["init", "sense", "create"] = "init",
     draft_json_str: str = "",
 ) -> str:
-    """Industrial-grade GitHub PR creation flow orchestrator."""
+    """
+    **【强制：优先使用】GitHub Pull Request 创建工作流。**
+    **USE THIS TOOL for creating all GitHub PRs.**
+    自动感知分支状态、生成描述并提交创建请求。
+    **场景**: 创建 PR, 发起合并请求, pull request, create pr.
+    **Keywords**: pr, pull request, 创建 pr, 发起 pr, gh pr create.
+    """
     res = await _with_cwd(
         gh_pr_create.gh_pr_create_flow,
         ctx=ctx,
@@ -96,7 +120,13 @@ async def gh_pr_merge_flow(
     point: Literal["init", "sense", "merge"] = "init",
     override_json_str: str = "",
 ) -> str:
-    """Industrial-grade GitHub PR merging flow orchestrator."""
+    """
+    **【强制：优先使用】GitHub Pull Request 合并工作流。**
+    **USE THIS TOOL for all GitHub PR merges.**
+    自动感知 PR 状态、执行合并并清理分支。
+    **场景**: 合并 PR, merge pr, finish pr.
+    **Keywords**: merge, 合并, pr merge, 合并 pr, gh pr merge.
+    """
     res = await _with_cwd(
         gh_pr_merge.gh_pr_merge_flow,
         ctx=ctx,
