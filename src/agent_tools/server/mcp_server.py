@@ -1,7 +1,5 @@
-import argparse
 import logging
 import os
-import sys
 from collections.abc import Callable
 from typing import Literal, cast
 
@@ -110,27 +108,6 @@ async def gh_pr_merge_flow(
 
 def main():
     """Main entry point for the MCP server."""
-    # Ensure dependencies from src are discoverable if this script is run directly
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.dirname(current_dir)
-    if src_dir not in sys.path:
-        sys.path.insert(0, src_dir)
-
-    parser = argparse.ArgumentParser(
-        description="Industrial-grade Agent Git Workflow Tools"
-    )
-    parser.add_argument(
-        "--repository",
-        "-r",
-        help="Path to the git repository (overrides AGENT_TOOLS_REPO_PATH)",
-    )
-    # Use parse_known_args to avoid conflicts with FastMCP's own arguments if any
-    args, _ = parser.parse_known_args()
-
-    if args.repository:
-        # Resolve to absolute path immediately
-        os.environ["AGENT_TOOLS_REPO_PATH"] = os.path.abspath(args.repository)
-
     mcp.run(transport="stdio")
 
 
