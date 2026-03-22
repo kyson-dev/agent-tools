@@ -2,12 +2,8 @@ import json
 from dataclasses import asdict
 from typing import Literal
 
-from ..config import (
-    get_allow_direct_actions_to_protected,
-    get_full_commit_rules,
-    get_protected_branches,
-)
-from ..git import (
+from agent_tools.core.models.workflow import Result
+from agent_tools.infrastructure.clients.git import (
     GitCommandError,
     execute_commit_plan,
     get_branch_context,
@@ -15,7 +11,11 @@ from ..git import (
     get_repo_context,
     run_git,
 )
-from ..protocol import Result
+from agent_tools.infrastructure.config.manager import (
+    get_allow_direct_actions_to_protected,
+    get_full_commit_rules,
+    get_protected_branches,
+)
 
 WORKFLOW = "git_commit"
 

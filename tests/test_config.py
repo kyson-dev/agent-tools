@@ -1,7 +1,8 @@
 import logging
 
 import yaml
-from agent_tools.config import (
+
+from agent_tools.infrastructure.config.manager import (
     deep_merge,
     get_allow_direct_actions_to_protected,
     get_commit_allowed_types,
@@ -44,7 +45,9 @@ def test_load_rules_minimal_override(tmp_path, monkeypatch):
     rules_file = tmp_path / "rules.yaml"
     rules_file.write_text(yaml.dump(custom_rules))
 
-    monkeypatch.setattr("agent_tools.config.get_rules_path", lambda: rules_file)
+    monkeypatch.setattr(
+        "agent_tools.infrastructure.config.manager.get_rules_path", lambda: rules_file
+    )
 
     load_rules.cache_clear()
     load_schema.cache_clear()
@@ -123,7 +126,7 @@ def test_validate_rules_missing_required_properties(caplog):
 def test_production_config_physical_alignment(caplog):
     """
     【生产环境物理对齐测试】：
-    验证 src/agent_tools/configs 下的 internal rules.yaml 是否 100% 遵守 schema.json。
+    验证 src/agent_tools.infrastructure.config.managers 下的 internal rules.yaml 是否 100% 遵守 schema.json。
     """
     load_rules.cache_clear()
     load_schema.cache_clear()

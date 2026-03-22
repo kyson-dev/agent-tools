@@ -1,6 +1,5 @@
-from agent_tools.context import REPO_CWD
-
-from agent_tools.git.client import run_git
+from agent_tools.infrastructure.clients.git.client import run_git
+from agent_tools.infrastructure.config.context import REPO_CWD
 
 
 def test_infra_isolation(temp_git_repo):

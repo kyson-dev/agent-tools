@@ -1,6 +1,6 @@
 import json
 
-from agent_tools.orchestrators.git_commit import git_commit_flow
+from agent_tools.core.orchestrators.git_commit import git_commit_flow
 
 
 def test_commit_flow_sense_dirty(temp_git_repo):

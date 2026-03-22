@@ -2,7 +2,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from agent_tools.context import REPO_CWD
+
+from agent_tools.infrastructure.config.context import REPO_CWD
 
 
 class GitTester:

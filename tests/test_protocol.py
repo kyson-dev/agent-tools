@@ -1,4 +1,4 @@
-from agent_tools.protocol import Result
+from agent_tools.core.models.workflow import Result
 
 
 def test_result_ok():

@@ -1,4 +1,4 @@
-from agent_tools.orchestrators.gh_pr_create import gh_pr_create_flow
+from agent_tools.core.orchestrators.gh_pr_create import gh_pr_create_flow
 
 
 def test_pr_create_init(temp_git_repo):
