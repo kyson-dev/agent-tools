@@ -16,7 +16,20 @@ mcp = FastMCP("agent-tools")
 
 
 def _with_cwd(func, repo_path: str, *args, **kwargs):
-    """Context-aware wrapper to setup working directory safely using ContextVars."""
+    """Context-aware wrapper to setup working directory safely using ContextVars.
+
+    If repo_path is '.' it will attempt to find the git root to ensure tools like
+    git_commit_flow work correctly.
+    """
+    if repo_path == ".":
+        # Search upwards for .git directory from the current process CWD
+        current = os.path.abspath(os.getcwd())
+        while current != os.path.dirname(current):
+            if os.path.isdir(os.path.join(current, ".git")):
+                repo_path = current
+                break
+            current = os.path.dirname(current)
+
     if repo_path and os.path.isdir(repo_path):
         token = REPO_CWD.set(repo_path)
     else:

@@ -1,2 +1,0 @@
-{"type":"click","text":"2\n      \n        第二阶段：核心突破 (Core Logic)\n        \n          为 git_commit_flow 编写集成测试\n          测试 git/repo.py 中的解析逻辑\n          验证保护分支拦截机制","choice":"stage2","id":null,"timestamp":1774147151534}
-{"type":"click","text":"3\n      \n        第三阶段：全面覆盖 (Expansion)\n        \n          补齐 gh/client.py 的 Mock 测试\n          完善其他 Orchestrators (Sync, Release, PR)\n          引入 Coverage 检查并消除盲区","choice":"stage3","id":null,"timestamp":1774147152223}
