@@ -15,14 +15,34 @@ class Result:
     )
     resume_point: str = ""  # Machine-readable string to pass back to the orchestrator (e.g., '--point current_rebase')
     instruction: str = ""  # Specific, actionable instructions for the LLM agent
+    constraints: list[str] = field(
+        default_factory=list
+    )  # Explicit prohibitions for the LLM agent
     strict_protocol: bool = (
         True  # If True, the LLM must strictly follow the workflow and never bypass it
     )
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
-        """Serialize result to JSON string."""
-        return json.dumps(asdict(self), indent=2, ensure_ascii=False)
+        """Serialize result to JSON string with enhanced instruction injection."""
+        data = asdict(self)
+
+        # Build enhanced instruction if strict_protocol is enabled
+        if self.strict_protocol:
+            header = "【STRICT PROTOCOL / 严格协议】\n"
+            header += (
+                "您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            )
+
+            if self.constraints:
+                header += "禁止动作 (PROHIBITED):\n"
+                for c in self.constraints:
+                    header += f"- {c}\n"
+
+            header += "请严格执行以下指令 (REQUIRED ACTION):\n"
+            data["instruction"] = header + self.instruction
+
+        return json.dumps(data, indent=2, ensure_ascii=False)
 
     @property
     def ok(self) -> bool:

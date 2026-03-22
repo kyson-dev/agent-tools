@@ -1,10 +1,10 @@
 import json
 import logging
+import re
 from typing import Literal
 
 from agent_tools.core.models.workflow import Result
 from agent_tools.infrastructure.clients.git import (
-    GitCommandError,
     get_branch_context,
     get_repo_context,
     run_git,
@@ -12,185 +12,116 @@ from agent_tools.infrastructure.clients.git import (
 from agent_tools.infrastructure.clients.github.client import run_gh
 from agent_tools.infrastructure.config.manager import get_full_commit_rules
 
+logger = logging.getLogger(__name__)
 WORKFLOW = "gh_pr_merge"
-logger = logging.getLogger(WORKFLOW)
-
-
-def _init_sync() -> Result:
-    return Result(
-        status="handoff",
-        message="PR merge initiated. Ensuring local branch is synchronized.",
-        workflow=WORKFLOW,
-        next_step="sync_branch",
-        resume_point="merge",
-        instruction='\
-                    1. **SYNC**: Run `git_sync_flow` to ensure your branch is updated and pushed. \
-                    2. **RESUME**: Call `gh_pr_merge_flow(point="sense")` after sync completes.',
-    )
 
 
 def _check_safety_guards() -> Result | None:
-    try:
-        repo_info = get_repo_context(refresh=True)
-        branch_info = get_branch_context(refresh=True)
+    """Pre-conditions for PR merging."""
+    repo_info = get_repo_context(refresh=True)
+    if not repo_info.owner or not repo_info.repo:
+        return Result(
+            status="error", message="GitHub context unknown.", workflow=WORKFLOW
+        )
 
-        if not repo_info.owner or not repo_info.repo:
-            return Result(
-                status="error",
-                message="Not in a git repository or no remote configured.",
-                workflow=WORKFLOW,
-            )
+    branch_info = get_branch_context(refresh=True)
+    if branch_info.is_detached:
+        return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
 
-        if branch_info.is_detached:
-            return Result(
-                status="error",
-                message="HEAD is detached. Merge requires being on a feature branch.",
-                workflow=WORKFLOW,
-            )
+    return None
 
-        return None
-    except Exception as e:
+
+def _handle_init() -> Result:
+    """Stage 0: Init and Sync."""
+    return Result(
+        status="handoff",
+        message="PR merge initiated.",
+        workflow=WORKFLOW,
+        next_step="SYNC_BEFORE_MERGE",
+        resume_point="sense",
+        instruction=(
+            "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
+            "2. After sync, call 'gh_pr_merge_flow' with point='sense'."
+        ),
+    )
+
+
+def _handle_sense() -> Result:
+    """Stage 1: PR analysis and message synthesis."""
+    guard = _check_safety_guards()
+    if guard:
+        return guard
+
+    branch_info = get_branch_context()
+    if not branch_info.current_branch:
+        return Result(
+            status="error", message="Unknown current branch.", workflow=WORKFLOW
+        )
+
+    view_res = run_gh(
+        [
+            "pr",
+            "view",
+            branch_info.current_branch,
+            "--json",
+            "number,title,body,state,mergeable,mergeStateStatus,statusCheckRollup,reviews,baseRefName",
+        ]
+    )
+
+    if view_res.returncode != 0:
         return Result(
             status="error",
-            message=f"Safety guard check failed: {str(e)}",
+            message=f"PR not found: {view_res.stderr}",
             workflow=WORKFLOW,
         )
 
+    pr_data = json.loads(view_res.stdout)
+    number = pr_data.get("number")
 
-def _sense() -> Result:
-    """
-    Two-stage Sense:
-    1. init:  Handoff to sync first.
-    2. merge: Perform analysis for PR merge.
-    """
-    try:
-        res = _check_safety_guards()
-        if res:
-            return res
-
-        branch_info = get_branch_context()
-        current_branch = branch_info.current_branch
-        if not current_branch:
-            return Result(
-                status="error",
-                message="Current branch is unknown (detached HEAD?).",
-                workflow=WORKFLOW,
-            )
-
-        # Fetch PR Metadata
-        view_res = run_gh(
-            [
-                "pr",
-                "view",
-                current_branch,
-                "--json",
-                "number,title,body,state,mergeable,mergeStateStatus,statusCheckRollup,reviews,headRefName,baseRefName",
-            ]
+    # Validation logic
+    if pr_data.get("state") != "OPEN":
+        return Result(
+            status="error", message=f"PR #{number} is not OPEN.", workflow=WORKFLOW
         )
 
-        if view_res.returncode != 0:
-            return Result(
-                status="error",
-                message=f"Failed to find PR for branch '{current_branch}': {view_res.stderr}",
-                workflow=WORKFLOW,
-            )
-
-        pr_data = json.loads(view_res.stdout)
-        number = pr_data.get("number")
-        state = pr_data.get("state")
-        mergeable = pr_data.get("mergeable")
-        merge_state = pr_data.get("mergeStateStatus")
-
-        # Guards
-        if state != "OPEN":
-            return Result(
-                status="error",
-                message=f"PR #{number} is {state}, not open.",
-                workflow=WORKFLOW,
-            )
-        if mergeable == "CONFLICTING" or merge_state == "DIRTY":
-            return Result(
-                status="error",
-                message=f"PR #{number} has merge conflicts.",
-                workflow=WORKFLOW,
-            )
-        if merge_state == "BEHIND":
-            return Result(
-                status="error",
-                message=f"PR #{number} is behind base branch. Run git_sync first.",
-                workflow=WORKFLOW,
-            )
-
-        # CI Checks
-        checks = pr_data.get("statusCheckRollup", [])
-        if checks:
-            failing = [
-                c
-                for c in checks
-                if c.get("status") == "COMPLETED"
-                and c.get("conclusion") not in ["SUCCESS", "SKIPPED", "NEUTRAL"]
-            ]
-            pending = [c for c in checks if c.get("status") != "COMPLETED"]
-            if failing:
-                return Result(
-                    status="error",
-                    message=f"PR #{number} has {len(failing)} failing CI checks.",
-                    workflow=WORKFLOW,
-                    details={"failing": failing},
-                )
-            if pending:
-                return Result(
-                    status="error",
-                    message=f"PR #{number} has {len(pending)} pending CI checks.",
-                    workflow=WORKFLOW,
-                )
-
-        # Reviews
-        reviews = pr_data.get("reviews", [])
-        changes_requested = [
-            r for r in reviews if r.get("state") == "CHANGES_REQUESTED"
-        ]
-        if changes_requested:
-            return Result(
-                status="error",
-                message=f"PR #{number} has active 'Changes Requested' reviews.",
-                workflow=WORKFLOW,
-            )
-
-        if merge_state == "BLOCKED":
-            return Result(
-                status="error",
-                message=f"PR #{number} is BLOCKED (likely missing approvals).",
-                workflow=WORKFLOW,
-            )
-
-        # Provide rules for message synthesis
-        rules = get_full_commit_rules()
-
+    if pr_data.get("mergeable") == "CONFLICTING":
         return Result(
-            status="handoff",
-            message=f"PR #{number} is ready for merge. Please synthesize the final squash commit message.",
+            status="error",
+            message=f"PR #{number} has conflicts.",
             workflow=WORKFLOW,
-            next_step="synthesize_merge_message",
-            resume_point="merge",
-            instruction=(
-                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
-                "2. Analyze PR metadata in `details`. "
-                '3. Call `gh_pr_merge_flow(point="merge", override_json_str=\'{"title": "..", "body": ".."}\')` to finalize.'
-            ),
-            details={"pr": pr_data, "commit_rules": rules},
+            instruction="Resolve conflicts manually or via git_sync_flow.",
         )
 
-    except Exception as e:
+    if pr_data.get("mergeStateStatus") == "BLOCKED":
         return Result(
-            status="error", message=f"Merge sense error: {str(e)}", workflow=WORKFLOW
+            status="error",
+            message=f"PR #{number} is BLOCKED (approvals or CI).",
+            workflow=WORKFLOW,
         )
 
+    return Result(
+        status="handoff",
+        message=f"PR #{number} is ready for merge.",
+        workflow=WORKFLOW,
+        next_step="SYNTHESIZE_SQUASH_MESSAGE",
+        resume_point="merge",
+        instruction=(
+            "1. Review PR metadata in details.\n"
+            "2. Synthesize a squash commit title and body following Conventional Commits.\n"
+            "3. Call 'gh_pr_merge_flow' with point='merge' and your override_json_str."
+        ),
+        constraints=[
+            "Commit message MUST match the regex in details.",
+        ],
+        details={
+            "pr": pr_data,
+            "commit_rules": get_full_commit_rules(),
+        },
+    )
 
-def _merge(override_json_str: str) -> Result:
-    """Stage 2: Execute the merge with the sanitized message."""
-    import json
 
+def _handle_merge(override_json_str: str) -> Result:
+    """Stage 2: Execution and local cleanup."""
     try:
         data = json.loads(override_json_str)
         title = data.get("title")
@@ -198,106 +129,87 @@ def _merge(override_json_str: str) -> Result:
     except json.JSONDecodeError:
         return Result(
             status="error",
-            message="Invalid override_json_str format.",
+            message="Invalid JSON in override_json_str.",
             workflow=WORKFLOW,
         )
 
-    try:
-        branch_info = get_branch_context()
-        current_branch = branch_info.current_branch
-        if not current_branch:
-            return Result(
-                status="error",
-                message="Current branch is unknown (detached HEAD?).",
-                workflow=WORKFLOW,
-            )
-
-        # Fetch PR number one last time
-        view_res = run_gh(
-            ["pr", "view", current_branch, "--json", "number,baseRefName"]
-        )
-        if view_res.returncode != 0:
-            return Result(
-                status="error",
-                message="Failed to fetch PR for final merge.",
-                workflow=WORKFLOW,
-            )
-
-        pr_data = json.loads(view_res.stdout)
-        number = pr_data.get("number")
-        base_branch = pr_data.get("baseRefName")
-
-        # --- Validation Guard ---
-        import re
-
-        rules = get_full_commit_rules()
-        commit_regex = rules["message_regex"]
-        if title and not re.match(commit_regex, title):
-            return Result(
-                status="error",
-                message=f"Merged title '{title}' violates commit policy: {commit_regex}",
-                workflow=WORKFLOW,
-            )
-
-        # Execute Merge
-        args = ["pr", "merge", str(number), "--squash", "--delete-branch"]
-        if title:
-            args.extend(["--subject", title])
-        if body:
-            args.extend(["--body", body])
-
-        merge_res = run_gh(args)
-        if merge_res.returncode != 0:
-            return Result(
-                status="error",
-                message=f"Merge failed: {merge_res.stderr}",
-                workflow=WORKFLOW,
-            )
-
-        # Local Cleanup
-        cleanup_report = []
-        if branch_info.is_dirty:
-            cleanup_report.append(
-                f"Preserving local branch '{current_branch}' due to uncommitted changes."
-            )
-        else:
-            try:
-                run_git(["checkout", base_branch])
-                run_git(["branch", "-D", current_branch])
-                cleanup_report.append(
-                    f"Deleted local branch '{current_branch}' and switched to '{base_branch}'."
-                )
-            except Exception as e:
-                cleanup_report.append(f"Local cleanup error: {str(e)}")
-
+    # Validate regex
+    rules = get_full_commit_rules()
+    if title and not re.match(rules["message_regex"], title):
         return Result(
-            status="success",
-            message=f"PR #{number} merged successfully with optimized commit message.",
-            workflow=WORKFLOW,
-            details={"cleanup": cleanup_report},
+            status="error", message="Title violates commit policy.", workflow=WORKFLOW
         )
 
-    except Exception as e:
+    branch_info = get_branch_context()
+    if not branch_info.current_branch:
         return Result(
-            status="error",
-            message=f"Merge execution error: {str(e)}",
-            workflow=WORKFLOW,
+            status="error", message="Unknown current branch.", workflow=WORKFLOW
         )
+
+    view_res = run_gh(
+        ["pr", "view", branch_info.current_branch, "--json", "number,baseRefName"]
+    )
+    if view_res.returncode != 0:
+        return Result(
+            status="error", message="Failed to fetch PR info.", workflow=WORKFLOW
+        )
+
+    pr_data = json.loads(view_res.stdout)
+    number = pr_data.get("number")
+    base_branch = pr_data.get("baseRefName")
+
+    if not number or not base_branch:
+        return Result(
+            status="error", message="Incomplete PR information.", workflow=WORKFLOW
+        )
+
+    # Execute Merge
+    args = ["pr", "merge", str(number), "--squash", "--delete-branch"]
+    if title:
+        args.extend(["--subject", title])
+    if body:
+        args.extend(["--body", body])
+
+    res = run_gh(args)
+    if res.returncode != 0:
+        return Result(
+            status="error", message=f"Merge failed: {res.stderr}", workflow=WORKFLOW
+        )
+
+    # Local Cleanup
+    if not branch_info.is_dirty:
+        try:
+            run_git(["checkout", base_branch])
+            run_git(["branch", "-D", branch_info.current_branch])
+        except Exception as e:
+            logger.warning(f"Local cleanup failed: {e}")
+
+    return Result(
+        status="success",
+        message=f"PR #{number} merged and branch cleaned up.",
+        workflow=WORKFLOW,
+    )
 
 
 def gh_pr_merge_flow(
     point: Literal["init", "sense", "merge"] = "init", override_json_str: str = ""
 ) -> Result:
+    """Industrial-grade GitHub PR merging flow orchestrator."""
+    handlers = {
+        "init": _handle_init,
+        "sense": _handle_sense,
+        "merge": lambda: _handle_merge(override_json_str),
+    }
+
     try:
-        if point == "init":
-            return _init_sync()
-        elif point == "sense":
-            return _sense()
-        elif point == "merge":
-            return _merge(override_json_str)
-    except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW)
+        handler = handlers.get(point)
+        if not handler:
+            return Result(
+                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
+            )
+        return handler()
     except Exception as e:
+        logger.exception("PR merge workflow crash")
         return Result(
-            status="error", message=f"PR merge flow error: {str(e)}", workflow=WORKFLOW
+            status="error", message=f"PR merge failed: {str(e)}", workflow=WORKFLOW
         )

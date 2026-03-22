@@ -11,7 +11,7 @@ def test_commit_flow_sense_dirty(temp_git_repo):
 
     assert res.status == "handoff", f"Error: {res.message}"
     assert any(f["filepath"] == "change.txt" for f in res.details["changed_files"])
-    assert "build_plan" in res.next_step
+    assert "BUILD_COMMIT_PLAN" in res.next_step
 
 
 def test_commit_flow_execute_plan(temp_git_repo):

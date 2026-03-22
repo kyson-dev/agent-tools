@@ -12,4 +12,4 @@ def test_pr_create_sense_no_remote(temp_git_repo):
     # Should fail because no remote is configured to determine owner/repo
     res = gh_pr_create_flow(point="sense")
     assert res.status == "error"
-    assert "Cannot determine repository owner/name" in res.message
+    assert "Cannot determine GitHub repository context." in res.message

@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import asdict
 from typing import Literal
 
@@ -18,140 +19,114 @@ from agent_tools.infrastructure.config.manager import (
     get_separation_rules,
 )
 
+logger = logging.getLogger(__name__)
 WORKFLOW = "git_commit"
 
 
 def _check_preconditions() -> Result | None:
-    """Shared pre-condition guards for both sense and execute.
-
-    Returns a Result if a guard fails, otherwise None (all clear).
-    """
+    """Pre-condition guards for commit operations."""
     branch_info = get_branch_context()
 
-    # Guard: detached HEAD
     if branch_info.is_detached:
         return Result(
             status="error",
-            message="HEAD is detached. Please checkout a branch before committing.",
+            message="HEAD is detached.",
             workflow=WORKFLOW,
+            instruction="Please checkout a branch (e.g., git checkout main) before committing.",
         )
 
-    # Guard: protected branch
     if (
         branch_info.current_branch in get_protected_branches()
         and not get_allow_direct_actions_to_protected()
     ):
         return Result(
             status="error",
-            message=f"Branch '{branch_info.current_branch}' is protected. Direct commits are restricted.",
+            message=f"Branch '{branch_info.current_branch}' is protected.",
             workflow=WORKFLOW,
-            details={"is_protected": True},
+            instruction="Direct commits are restricted. Please create a feature branch.",
         )
 
     return None
 
 
-def _sense() -> Result:
-    try:
-        guard = _check_preconditions()
-        if guard:
-            return guard
+def _handle_sense() -> Result:
+    """Stage 1: Analyze changes and rules."""
+    guard = _check_preconditions()
+    if guard:
+        return guard
 
-        repo_info = get_repo_context()
-        branch_info = get_branch_context()
-
-        # Stage all changes — must succeed before we proceed
-        add_res = run_git(["add", "."])
-        if not add_res.ok:
-            return Result(
-                status="error",
-                message=f"Failed to stage files: {add_res.stderr}",
-                workflow=WORKFLOW,
-            )
-
-        diff_info = get_diff_summary()
-        changed_files = diff_info.changed_files
-
-        if not changed_files:
-            return Result(
-                status="success",
-                message="Working tree is clean.",
-                workflow=WORKFLOW,
-                details={"changed_files": []},
-            )
-
-        rules_context = get_full_commit_rules()
-        separation_rules = get_separation_rules()
-
-        return Result(
-            status="handoff",
-            message="Ready to build commit plan.",
-            workflow=WORKFLOW,
-            next_step="build_plan",
-            resume_point="plan",
-            instruction=(
-                "1. All message MUST following **Conventional Commits** and `details.commit_rules` and `details.separation_rules`. "
-                "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
-                '3. Execute `git_commit_flow(point="commit", plan_json_str=\'{"commits": [{"files": [".."], "message": ".."}]}\')` with your grouping strategy.'
-            ),
-            details={
-                "changed_files": [asdict(f) for f in changed_files],
-                "diff_summary": diff_info.diff_summary,
-                "branch_info": asdict(branch_info),
-                "repo_context": asdict(repo_info),
-                "commit_rules": rules_context,
-                "separation_rules": separation_rules,
-            },
-        )
-
-    except GitCommandError as e:
+    # Stage changes
+    add_res = run_git(["add", "."])
+    if not add_res.ok:
         return Result(
             status="error",
-            message=str(e),
+            message="Failed to stage files.",
             workflow=WORKFLOW,
-            details={"command": e.command, "stderr": e.stderr},
+            details={"stderr": add_res.stderr},
+            instruction="Please check for file locks or permissions and try again.",
         )
-    except Exception as e:
+
+    diff_info = get_diff_summary()
+    if not diff_info.changed_files:
         return Result(
-            status="error", message=f"Sense error: {str(e)}", workflow=WORKFLOW
+            status="success",
+            message="Working tree is clean.",
+            workflow=WORKFLOW,
         )
 
+    return Result(
+        status="handoff",
+        message="Ready to build commit plan.",
+        workflow=WORKFLOW,
+        next_step="BUILD_COMMIT_PLAN",
+        resume_point="commit",
+        instruction=(
+            "1. Review the 'changed_files' and 'diff_summary' in details.\n"
+            "2. Group changes logically based on 'separation_rules'.\n"
+            "3. Draft commit messages following **Conventional Commits** and 'commit_rules'.\n"
+            "4. Call 'git_commit_flow' with point='commit' and your plan_json_str."
+        ),
+        constraints=[
+            "Do NOT combine unrelated changes into a single commit.",
+            "Do NOT bypass Conventional Commit formatting.",
+        ],
+        details={
+            "changed_files": [asdict(f) for f in diff_info.changed_files],
+            "diff_summary": diff_info.diff_summary,
+            "commit_rules": get_full_commit_rules(),
+            "separation_rules": get_separation_rules(),
+            "branch_info": asdict(get_branch_context()),
+            "repo_info": asdict(get_repo_context()),
+        },
+    )
 
-def _commit(plan_json_str: str) -> Result:
+
+def _handle_commit(plan_json_str: str) -> Result:
+    """Stage 2: Execute the provided commit plan."""
+    guard = _check_preconditions()
+    if guard:
+        return guard
+
     try:
-        # Guard: pre-conditions before executing any git writes
-        guard = _check_preconditions()
-        if guard:
-            return guard
-
         plan = json.loads(plan_json_str)
     except json.JSONDecodeError:
         return Result(
-            status="error",
-            message="Invalid plan: expected a JSON string.",
+            status="handoff",
+            message="Invalid JSON format in plan.",
             workflow=WORKFLOW,
-        )
-    except GitCommandError as e:
-        return Result(
-            status="error",
-            message=str(e),
-            workflow=WORKFLOW,
-            details={"command": e.command, "stderr": e.stderr},
-        )
-    except Exception as e:
-        return Result(
-            status="error", message=f"Execute setup error: {str(e)}", workflow=WORKFLOW
+            resume_point="commit",
+            instruction="Fix the JSON formatting error and resubmit the plan.",
+            details={"received_str": plan_json_str},
         )
 
     try:
         commit_res = execute_commit_plan(plan)
-
         if not commit_res.ok:
             return Result(
                 status="error",
-                message=f"Commit failed: {commit_res.message}",
+                message=f"Commit execution failed: {commit_res.message}",
                 workflow=WORKFLOW,
-                details={"git_output": commit_res.message},
+                instruction="Investigate the git error above. You may need to manually fix conflicts or configuration.",
             )
 
         return Result(
@@ -160,35 +135,34 @@ def _commit(plan_json_str: str) -> Result:
             workflow=WORKFLOW,
             details={"commits": commit_res.executed_commits},
         )
-
     except GitCommandError as e:
         return Result(
             status="error",
-            message=str(e),
+            message=f"Git error: {e.stderr}",
             workflow=WORKFLOW,
-            details={"command": e.command, "stderr": e.stderr},
-        )
-    except Exception as e:
-        return Result(
-            status="error", message=f"Execute error: {str(e)}", workflow=WORKFLOW
+            instruction="Fix the underlying git issue and restart the commit flow.",
         )
 
 
 def git_commit_flow(
     point: Literal["sense", "commit"] = "sense", plan_json_str: str = ""
 ) -> Result:
+    """Industrial-grade git commit flow orchestrator."""
     try:
         if point == "sense":
-            return _sense()
-        elif point == "commit":
-            return _commit(plan_json_str)
-        else:
-            raise ValueError(f"Unknown point: {point}")
-    except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW)
-    except Exception as e:
+            return _handle_sense()
+        if point == "commit":
+            return _handle_commit(plan_json_str)
         return Result(
             status="error",
-            message=f"Git commit flow error: {str(e)}",
+            message=f"Unknown resume point: {point}",
             workflow=WORKFLOW,
+        )
+    except Exception as e:
+        logger.exception("Unexpected error in git_commit_flow")
+        return Result(
+            status="error",
+            message=f"Unexpected error: {str(e)}",
+            workflow=WORKFLOW,
+            instruction="Please report this bug to the developer.",
         )
