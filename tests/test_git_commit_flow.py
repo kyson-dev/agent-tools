@@ -1,6 +1,6 @@
 import json
 
-from agent_tools.orchestrators.git_commit import git_commit_flow
+from agent_tools.core.orchestrators.git_commit import git_commit_flow
 
 
 def test_commit_flow_sense_dirty(temp_git_repo):
@@ -10,8 +10,8 @@ def test_commit_flow_sense_dirty(temp_git_repo):
     res = git_commit_flow(point="sense")
 
     assert res.status == "handoff", f"Error: {res.message}"
-    assert any(f["filepath"] == "change.txt" for f in res.details["changed_files"])
-    assert "build_plan" in res.next_step
+    assert any(f == "change.txt" for f in res.details["unstaged_files"])
+    assert "BUILD_COMMIT_PLAN" in res.next_step
 
 
 def test_commit_flow_execute_plan(temp_git_repo):

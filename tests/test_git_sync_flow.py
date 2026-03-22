@@ -1,4 +1,4 @@
-from agent_tools.orchestrators.git_sync import git_sync_flow
+from agent_tools.core.orchestrators.git_sync import git_sync_flow
 
 
 def test_sync_flow_init_with_remote(temp_git_repo):

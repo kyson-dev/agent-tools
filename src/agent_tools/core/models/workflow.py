@@ -15,6 +15,9 @@ class Result:
     )
     resume_point: str = ""  # Machine-readable string to pass back to the orchestrator (e.g., '--point current_rebase')
     instruction: str = ""  # Specific, actionable instructions for the LLM agent
+    constraints: list[str] = field(
+        default_factory=list
+    )  # Explicit prohibitions for the LLM agent
     strict_protocol: bool = (
         True  # If True, the LLM must strictly follow the workflow and never bypass it
     )
@@ -22,6 +25,8 @@ class Result:
 
     def to_json(self) -> str:
         """Serialize result to JSON string."""
+        # We no longer auto-prepend headers here to avoid redundancy.
+        # Orchestrators are responsible for high-quality instructions.
         return json.dumps(asdict(self), indent=2, ensure_ascii=False)
 
     @property

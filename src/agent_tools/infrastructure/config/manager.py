@@ -13,17 +13,17 @@ logger = logging.getLogger(__name__)
 
 def get_base_dir() -> Path:
     """Get the base '.agents' directory."""
-    return Path(__file__).parent.parent.parent
+    return Path(__file__).parent.parent.parent.parent.parent
 
 
 def get_internal_base_rules_path() -> Path:
     """The tool's internal default rules.yaml (The Single Source of Truth)."""
-    return Path(__file__).parent / "configs" / "rules.yaml"
+    return Path(__file__).parent / "resources" / "rules.yaml"
 
 
 def get_rules_path() -> Path:
     """Get the cascading overrides for user/project."""
-    from .context import REPO_CWD
+    from agent_tools.infrastructure.config.context import REPO_CWD
 
     cwd = REPO_CWD.get() or os.getcwd()
 
@@ -40,7 +40,7 @@ def get_rules_path() -> Path:
 
 def get_schema_path() -> Path:
     """Schema is usually tool-internal, but can be overridden by project."""
-    return Path(__file__).parent / "configs" / "schema.json"
+    return Path(__file__).parent / "resources" / "schema.json"
 
 
 @functools.lru_cache(maxsize=1)
@@ -171,6 +171,11 @@ def get_full_commit_rules() -> dict[str, Any]:
         "message_regex": get_commit_message_regex(),
         "subject_max_length": get_commit_subject_max_length(),
         "body_wrap_length": get_commit_body_wrap_length(),
+    }
+
+
+def get_separation_rules() -> dict[str, Any]:
+    return {
         "grouping_signals": get_commit_grouping_signals(),
         "max_groups": get_commit_max_groups(),
     }

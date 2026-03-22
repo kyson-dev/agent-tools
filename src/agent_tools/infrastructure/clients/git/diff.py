@@ -1,4 +1,8 @@
-from ..config import get_diff_max_lines_per_file, get_diff_max_total_lines
+from agent_tools.infrastructure.config.manager import (
+    get_diff_max_lines_per_file,
+    get_diff_max_total_lines,
+)
+
 from .client import run_git
 from .git_types import DiffSummary, FileStatus
 from .repo import get_repo_context
