@@ -40,7 +40,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 agent_tools = ["configs/*.yaml", "configs/*.json"]
 
-
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
