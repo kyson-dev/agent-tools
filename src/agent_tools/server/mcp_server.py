@@ -70,11 +70,14 @@ async def _with_cwd(func: Callable, repo_path: str, ctx: Context | None, *args, 
         source = "system_cwd (fallback)"
 
     token = REPO_CWD.set(final_path)
-    # 【核心：溯源显示】让用户在 Debug 日志中一眼看到路径由来
-    logger.info(f"[PATH_RESOLUTION] Resolved REPO_CWD to '{final_path}' via [{source}]")
-
+    logger.debug(f"[DEBUG] _with_cwd: set REPO_CWD to {final_path} (Source: {source})")
     try:
-        return func(*args, **kwargs)
+        res = func(*args, **kwargs)
+        # 核心：将溯源信息注入结果对象，让其在工具输出中可见
+        if hasattr(res, "details") and isinstance(res.details, dict):
+            res.details["path_resolution_source"] = source
+            res.details["resolved_repo_path"] = final_path
+        return res
     finally:
         REPO_CWD.reset(token)
 
