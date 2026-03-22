@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-kyson-mcp-agent-tools = "agent_tools.server:main"
+kyson-mcp-agent-tools = "agent_tools.server.mcp_server:main"
 
 [tool.ruff]
 line-length = 88
@@ -38,7 +38,7 @@ ignore_missing_imports = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-agent_tools = ["configs/*.yaml", "configs/*.json"]
+agent_tools = ["infrastructure/config/resources/*.yaml", "infrastructure/config/resources/*.json"]
 
 [dependency-groups]
 dev = [
