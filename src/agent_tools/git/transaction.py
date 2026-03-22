@@ -1,5 +1,4 @@
 from .client import run_git
-from .types import GitCommandError
 
 
 class GitTransaction:

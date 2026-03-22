@@ -1,0 +1,83 @@
+<h2>测试架构改进路线图</h2>
+<p class="subtitle">通过分阶段实施，稳步提升项目的测试质量与开发效率</p>
+
+<div class="section">
+  <h3>1. 核心设计理念</h3>
+  <div class="cards">
+    <div class="card">
+      <div class="card-body">
+        <h4>🛠️ 基础设施 (Infrastructure)</h4>
+        <p>完善 <code>conftest.py</code>，提供隔离的 Git 仓库和 Mock 环境。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h4>🛡️ 风险驱动 (Risk-Driven)</h4>
+        <p>优先覆盖编排器（Orchestrators）和复杂的 Git 逻辑。</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <h4>🧪 集成验证 (Integration)</h4>
+        <p>在真实的临时仓库中运行测试，确保端到端的正确性。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2. 改进路线图 (Roadmap)</h3>
+  <div class="options" data-multiselect>
+    <div class="option selected" data-choice="stage1">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>第一阶段：基座搭建 (Infrastructure)</h3>
+        <ul>
+          <li>创建 <code>tests/conftest.py</code></li>
+          <li>实现 <code>temp_git_repo</code> fixture</li>
+          <li>添加常用 Mock 工具类</li>
+        </ul>
+      </div>
+    </div>
+    <div class="option" data-choice="stage2">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>第二阶段：核心突破 (Core Logic)</h3>
+        <ul>
+          <li>为 <code>git_commit_flow</code> 编写集成测试</li>
+          <li>测试 <code>git/repo.py</code> 中的解析逻辑</li>
+          <li>验证保护分支拦截机制</li>
+        </ul>
+      </div>
+    </div>
+    <div class="option" data-choice="stage3">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>第三阶段：全面覆盖 (Expansion)</h3>
+        <ul>
+          <li>补齐 <code>gh/client.py</code> 的 Mock 测试</li>
+          <li>完善其他 Orchestrators (Sync, Release, PR)</li>
+          <li>引入 Coverage 检查并消除盲区</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>方案优势</h4>
+    <ul>
+      <li><strong>低成本</strong>：复用现有 pytest 模式</li>
+      <li><strong>高可靠</strong>：集成测试模拟真实场景</li>
+      <li><strong>易维护</strong>：模块化测试结构</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>潜在挑战</h4>
+    <ul>
+      <li>Git 操作较慢（需优化临时仓库创建）</li>
+      <li>GitHub API 交互多，Mock 工作量大</li>
+    </ul>
+  </div>
+</div>

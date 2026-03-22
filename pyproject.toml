@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kyson-mcp-agent-tools"
-version = "0.1.7"
+version = "0.1.8"
 description = "Industrial-grade Agent Git Workflow Tools"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.13"
 dependencies = [
     "PyYAML>=6.0",
     "jsonschema>=4.0.0",
@@ -18,13 +18,36 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "ruff",
+    "mypy"
 ]
 
 [project.scripts]
 kyson-mcp-agent-tools = "agent_tools.server:main"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "T20"]
+ignore = ["E501"]
+fixable = ["I", "F401"]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
 agent_tools = ["configs/*.yaml", "configs/*.json"]
+
+[dependency-groups]
+dev = [
+    "types-pyyaml>=6.0.12.20250915",
+]

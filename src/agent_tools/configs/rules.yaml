@@ -2,8 +2,6 @@
 # This file serves as the Single Source of Truth for both L3 Workflows (Prompt Context)
 # and L2 Scripts (Validation Schemas).
 
-version: 2
-
 git:
   commit:
     # Allowed Conventional Commits types

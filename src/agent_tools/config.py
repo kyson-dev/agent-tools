@@ -1,60 +1,71 @@
-import os
 import functools
 import json
+import logging
+import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, cast
 
 import yaml
-import logging
-from jsonschema import validate, ValidationError
+from jsonschema import ValidationError, validate
 
 logger = logging.getLogger(__name__)
 
+
 def get_base_dir() -> Path:
     """Get the base '.agents' directory."""
-    # This file is in src/agent_tools/config.py
-    # So base dir is 3 levels up
     return Path(__file__).parent.parent.parent
 
-def get_rules_path() -> Path:
-    from agent_tools.context import REPO_CWD
-    cwd = REPO_CWD.get() or os.getcwd()
-    # 1. PRIORITY 1: Project-level rules (.agent/configs/rules.yaml)
-    project_rules = Path(cwd) / ".agent" / "configs" / "rules.yaml"
-    if project_rules.exists():
-        return project_rules
-        
-    # 2. PRIORITY 2: User-level global rules (~/.agent/configs/rules.yaml)
-    user_rules = Path.home() / ".agent" / "configs" / "rules.yaml"
-    if user_rules.exists():
-        return user_rules
-            
-    # 3. PRIORITY 3: Tool-level internal fallback
+
+def get_internal_base_rules_path() -> Path:
+    """The tool's internal default rules.yaml (The Single Source of Truth)."""
     return Path(__file__).parent / "configs" / "rules.yaml"
 
-def get_schema_path() -> Path:
+
+def get_rules_path() -> Path:
+    """Get the cascading overrides for user/project."""
     from agent_tools.context import REPO_CWD
+
     cwd = REPO_CWD.get() or os.getcwd()
-    # Same cascading logic for schema or keep it tool-internal?
-    # Usually schema is tied to the tool version, but we'll follow similar pattern
-    project_schema = Path(cwd) / ".agent" / "configs" / "schema.json"
-    if project_schema.exists():
-        return project_schema
+
+    # Check Project first, then User Home
+    paths = [
+        Path(cwd) / ".agent" / "configs" / "rules.yaml",
+        Path.home() / ".agent" / "configs" / "rules.yaml",
+    ]
+    for p in paths:
+        if p.exists():
+            return p
+    return Path("")  # Signifies no user overrides
+
+
+def get_schema_path() -> Path:
+    """Schema is usually tool-internal, but can be overridden by project."""
     return Path(__file__).parent / "configs" / "schema.json"
 
+
 @functools.lru_cache(maxsize=1)
-def load_schema() -> Dict[str, Any]:
+def load_schema() -> dict[str, Any]:
     schema_path = get_schema_path()
     if not schema_path.exists():
         return {}
-        
     try:
-        with open(schema_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(schema_path, encoding="utf-8") as f:
+            return cast(dict[str, Any], json.load(f))
     except Exception:
         return {}
 
-def validate_rules(rules: Dict[str, Any]) -> None:
+
+def deep_merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge two dictionaries."""
+    for key, value in overrides.items():
+        if isinstance(value, dict) and key in base and isinstance(base[key], dict):
+            base[key] = deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def validate_rules(rules: dict[str, Any]) -> None:
     schema = load_schema()
     if schema:
         try:
@@ -62,120 +73,99 @@ def validate_rules(rules: Dict[str, Any]) -> None:
         except ValidationError as e:
             logger.warning(f"rules.yaml validation failed: {e.message}")
 
-@functools.lru_cache(maxsize=32)
-def _load_rules_cached(rules_path_str: str) -> Dict[str, Any]:
-    rules_path = Path(rules_path_str)
-    logger.info(f"Attempting to load rules from: {rules_path.absolute()}")
-    if not rules_path.exists():
-        return {}
-        
-    try:
-        with open(rules_path, "r", encoding="utf-8") as f:
-            rules = yaml.safe_load(f) or {}
-            validate_rules(rules)
-            return rules
-    except Exception as e:
-        logger.error(f"Failed to load rules: {e}")
-        return {}
 
-def load_rules() -> Dict[str, Any]:
-    """Load and optionally validate rules.yaml."""
-    rules_path = get_rules_path()
-    return _load_rules_cached(str(rules_path.absolute()))
+@functools.lru_cache(maxsize=1)
+def load_rules() -> dict[str, Any]:
+    """
+    Load rules with the Single Source of Truth Chain:
+    1. Base: Load Internal rules.yaml (providing all human-readable defaults)
+    2. Overrides: Mix in User/Project partial rules
+    3. Sanity: Clean 'version' (Legacy) and Validate against Schema
+    """
+    # 1. Start with the internal readable base
+    base_path = get_internal_base_rules_path()
+    try:
+        with open(base_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+    except Exception as e:
+        logger.error(f"FATAL: Missing internal base rules at {base_path}: {e}")
+        config = {}
+
+    # 2. Layer user overrides
+    user_rules_path = get_rules_path()
+    if user_rules_path and user_rules_path.exists():
+        try:
+            with open(user_rules_path, encoding="utf-8") as f:
+                user_overrides = yaml.safe_load(f) or {}
+                config = deep_merge(config, user_overrides)
+        except Exception as e:
+            logger.error(f"Failed to load user rules from {user_rules_path}: {e}")
+
+    # 3. Cleanup & Integrity Check
+    config.pop("version", None)
+    validate_rules(config)
+    return config
+
+
+# --- Specialized Getters (Zero Callbacks) ---
+
 
 def get_protected_branches() -> list[str]:
-    """Get protected branches, providing safe defaults."""
     rules = load_rules()
-    try:
-        return rules["git"]["safety"]["protected_branches"]
-    except KeyError:
-        return ["main", "master", "production", "prod"]
+    return cast(list[str], rules["git"]["safety"]["protected_branches"])
+
 
 def get_commit_allowed_types() -> list[str]:
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["allowed_types"]
-    except KeyError:
-        return []
+    return cast(list[str], rules["git"]["commit"]["allowed_types"])
+
 
 def get_commit_message_regex() -> str:
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["message_regex"]
-    except KeyError:
-        return ""
+    return cast(str, rules["git"]["commit"]["message_regex"])
+
 
 def get_commit_subject_max_length() -> int:
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["subject_max_length"]
-    except KeyError:
-        return 72
+    return cast(int, rules["git"]["commit"]["subject_max_length"])
+
 
 def get_commit_body_wrap_length() -> int:
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["body_wrap_length"]
-    except KeyError:
-        return 80
+    return cast(int, rules["git"]["commit"]["body_wrap_length"])
+
 
 def get_commit_grouping_signals() -> list[str]:
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["grouping_signals"]
-    except KeyError:
-        return []
+    return cast(list[str], rules["git"]["commit"]["grouping_signals"])
+
 
 def get_commit_max_groups() -> int:
-    """Max number of commit groups allowed in a single plan."""
     rules = load_rules()
-    try:
-        return rules["git"]["commit"]["max_groups"]
-    except KeyError:
-        return 8
+    return cast(int, rules["git"]["commit"]["max_groups"])
+
 
 def get_diff_max_lines_per_file() -> int:
-    """Max diff lines allowed per individual file."""
     rules = load_rules()
-    try:
-        return rules["git"]["diff"]["max_diff_lines_per_file"]
-    except KeyError:
-        return 500
+    return cast(int, rules["git"]["diff"]["max_diff_lines_per_file"])
+
 
 def get_diff_max_total_lines() -> int:
     rules = load_rules()
-    try:
-        return rules["git"]["diff"]["max_total_diff_lines"]
-    except KeyError:
-        return 3000
+    return cast(int, rules["git"]["diff"]["max_total_diff_lines"])
+
 
 def get_allow_direct_actions_to_protected() -> bool:
-    """Check if direct actions to protected branches are permitted."""
     rules = load_rules()
-    try:
-        # Fallback to False if safety context exists but key doesn't
-        return rules["git"]["safety"].get("allow_direct_actions_to_protected", False)
-    except KeyError:
-        return False
+    return cast(bool, rules["git"]["safety"]["allow_direct_actions_to_protected"])
 
-def get_release_version_files() -> list[str]:
-    """Get the list of files to update for a release."""
-    rules = load_rules()
-    try:
-        return rules["git"]["release"]["version_files"]
-    except KeyError:
-        return []
 
 def get_release_tag_regex() -> str:
-    """Get the regex pattern for validating release tags."""
     rules = load_rules()
-    try:
-        return rules["git"]["release"]["tag_regex"]
-    except KeyError:
-        return "^v\\d+\\.\\d+\\.\\d+$"  # Default to v1.2.3 format
+    return cast(str, rules["git"]["release"]["tag_regex"])
 
-def get_full_commit_rules() -> Dict[str, Any]:
-    """Returns the comprehensive set of commit rules for AI consumption."""
+
+def get_full_commit_rules() -> dict[str, Any]:
     return {
         "allowed_types": get_commit_allowed_types(),
         "message_regex": get_commit_message_regex(),

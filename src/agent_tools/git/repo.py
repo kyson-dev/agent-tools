@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 from .client import run_git
 from .types import RepoContext
@@ -89,9 +88,10 @@ def get_repo_context(refresh: bool = False) -> RepoContext:
         all_remotes=remote_names,
     )
 
-def get_latest_tag() -> Optional[str]:
+
+def get_latest_tag() -> str | None:
     """Returns the most recent tag reachable from HEAD.
-    
+
     Returns:
         The tag name if found, otherwise None.
     """

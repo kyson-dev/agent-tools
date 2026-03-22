@@ -1,10 +1,8 @@
-from typing import List
-
 from .client import run_git
-from .types import CommitRecord, GitCommandError
+from .types import CommitRecord
 
 
-def get_commits_ahead(base: str) -> List[CommitRecord]:
+def get_commits_ahead(base: str) -> list[CommitRecord]:
     """Returns commits on HEAD that are not yet in `base`.
 
     Uses NUL-delimited records to safely handle multi-line commit bodies.
@@ -20,12 +18,14 @@ def get_commits_ahead(base: str) -> List[CommitRecord]:
     """
     # %x00 is NUL — used as the record separator (safe with multi-line bodies)
     # Format: hash NL subject NL body NUL
-    res = run_git([
-        "log",
-        f"{base}..HEAD",
-        "--format=%H%n%s%n%b%x00",
-        "--reverse",
-    ])
+    res = run_git(
+        [
+            "log",
+            f"{base}..HEAD",
+            "--format=%H%n%s%n%b%x00",
+            "--reverse",
+        ]
+    )
     res.raise_on_error(f"Failed to get commits ahead of '{base}'")
 
     raw = res.stdout.strip()

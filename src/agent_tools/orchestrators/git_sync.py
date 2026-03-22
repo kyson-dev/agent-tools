@@ -5,12 +5,21 @@ Linear pipeline: Init → Pull/Rebase Upstream → Rebase Main → Push
 Each stage can pause for conflicts, returning a Result with the current `point`
 so L3 can resume after resolving.
 """
-import os
-from typing import Literal, Optional
 
+import os
+from typing import Literal
+
+from agent_tools.config import (
+    get_allow_direct_actions_to_protected,
+    get_protected_branches,
+)
+from agent_tools.git import (
+    GitCommandError,
+    get_branch_context,
+    get_repo_context,
+    run_git,
+)
 from agent_tools.protocol import Result
-from agent_tools.git import run_git, get_branch_context, get_repo_context, GitCommandError
-from agent_tools.config import get_protected_branches, get_allow_direct_actions_to_protected
 
 WORKFLOW = "git_sync"
 
@@ -19,16 +28,20 @@ WORKFLOW = "git_sync"
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _get_op_status() -> Optional[str]:
+
+def _get_op_status() -> str | None:
     """Detect which git operation is currently in progress, if any.
-    
+
     Returns: 'rebase', 'merge', 'cherry-pick', or None.
     """
     git_dir_res = run_git(["rev-parse", "--git-dir"])
     if not git_dir_res.ok:
         return None
     git_dir = git_dir_res.stdout.strip()
-    if any(os.path.exists(os.path.join(git_dir, d)) for d in ("rebase-merge", "rebase-apply")):
+    if any(
+        os.path.exists(os.path.join(git_dir, d))
+        for d in ("rebase-merge", "rebase-apply")
+    ):
         return "rebase"
     if os.path.exists(os.path.join(git_dir, "MERGE_HEAD")):
         return "merge"
@@ -47,8 +60,8 @@ def _pause_for_conflict(current_point: str) -> Result:
         next_step="resolve_conflicts",
         resume_point=current_point,
         instruction=f"1. Resolve conflicts in files listed in `details`. "
-                    f"2. Run `git add <file>` for each resolved file. "
-                    f"3. Resume the pipeline by calling `git_sync_flow(point=\"{current_point}\")`.",
+        f"2. Run `git add <file>` for each resolved file. "
+        f'3. Resume the pipeline by calling `git_sync_flow(point="{current_point}")`.',
         details={
             "conflicted_files": conflicts_res.stdout.strip().splitlines(),
         },
@@ -59,7 +72,11 @@ def _abort() -> Result:
     """Abort whichever git operation is currently in progress."""
     op = _get_op_status()
     if op is None:
-        return Result(status="error", message="No operation in progress to abort.", workflow=WORKFLOW)
+        return Result(
+            status="error",
+            message="No operation in progress to abort.",
+            workflow=WORKFLOW,
+        )
 
     abort_cmd = {
         "rebase": ["rebase", "--abort"],
@@ -69,8 +86,15 @@ def _abort() -> Result:
 
     res = run_git(abort_cmd)
     if res.ok:
-        return Result(status="success", message=f"{op.capitalize()} aborted. Environment rolled back.", workflow=WORKFLOW)
-    return Result(status="error", message=f"Abort failed: {res.stderr}", workflow=WORKFLOW)
+        return Result(
+            status="success",
+            message=f"{op.capitalize()} aborted. Environment rolled back.",
+            workflow=WORKFLOW,
+        )
+    return Result(
+        status="error", message=f"Abort failed: {res.stderr}", workflow=WORKFLOW
+    )
+
 
 def _sync(
     point: Literal["init", "current_rebase", "rebase_main", "push"] = "init",
@@ -140,7 +164,7 @@ def _sync(
                     workflow=WORKFLOW,
                     next_step="clean_worktree",
                     resume_point="init",
-                    instruction="Run the `git_commit_flow` prompt to clear changes, then re-run sync with `point=\"init\"`.",
+                    instruction='Run the `git_commit_flow` prompt to clear changes, then re-run sync with `point="init"`.',
                 )
 
             # 1f. Guard: no remote configured
@@ -183,7 +207,7 @@ def _sync(
 
                 # Skip if default branch is unknown (e.g. fresh remote with no branches yet)
                 if not repo_info.default_branch or not repo_info.primary_remote:
-                    pass    
+                    pass
                 # Skip if current branch is the default branch
                 elif branch_info.current_branch == repo_info.default_branch:
                     pass
@@ -200,6 +224,13 @@ def _sync(
         # ====== Stage 4: Push ======
         if point == "push":
             branch_info = get_branch_context()
+            if not branch_info.current_branch:
+                return Result(
+                    status="error",
+                    message="Current branch is unknown. Please checkout a branch before syncing.",
+                    workflow=WORKFLOW,
+                )
+
             repo_info = get_repo_context()
             remote = repo_info.primary_remote or "origin"
 
@@ -245,7 +276,10 @@ def _sync(
             workflow=WORKFLOW,
         )
 
-def git_sync_flow(point: Literal["init", "current_rebase", "rebase_main", "push", "abort"]="init") -> Result:
+
+def git_sync_flow(
+    point: Literal["init", "current_rebase", "rebase_main", "push", "abort"] = "init",
+) -> Result:
     try:
         if point == "abort":
             return _abort()
@@ -254,4 +288,6 @@ def git_sync_flow(point: Literal["init", "current_rebase", "rebase_main", "push"
     except GitCommandError as e:
         return Result(status="error", message=str(e), workflow=WORKFLOW)
     except Exception as e:
-        return Result(status="error", message=f"Git sync error: {str(e)}", workflow=WORKFLOW)
+        return Result(
+            status="error", message=f"Git sync error: {str(e)}", workflow=WORKFLOW
+        )
