@@ -23,7 +23,7 @@ def get_internal_base_rules_path() -> Path:
 
 def get_rules_path() -> Path:
     """Get the cascading overrides for user/project."""
-    from agent_tools.context import REPO_CWD
+    from .context import REPO_CWD
 
     cwd = REPO_CWD.get() or os.getcwd()
 
