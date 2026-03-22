@@ -1,7 +1,6 @@
 import logging
 
 import yaml
-
 from agent_tools.config import (
     deep_merge,
     get_allow_direct_actions_to_protected,

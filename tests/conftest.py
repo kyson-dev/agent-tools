@@ -2,7 +2,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from agent_tools.context import REPO_CWD
 
 
