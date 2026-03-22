@@ -9,8 +9,11 @@ from agent_tools.infrastructure.clients.git import (
     get_commits_ahead,
     get_repo_context,
 )
+
+from agent_tools.infrastructure.config.manager import (
+    get_full_commit_rules,
+)
 from agent_tools.infrastructure.clients.github.client import run_gh
-from agent_tools.infrastructure.config.manager import get_full_commit_rules
 
 logger = logging.getLogger(__name__)
 WORKFLOW = "gh_pr_create"
