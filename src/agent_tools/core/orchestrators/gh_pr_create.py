@@ -67,7 +67,7 @@ def _handle_init() -> Result:
     if guard:
         return guard
 
-    branch_info = get_branch_context(refresh=True)
+    branch_info = get_branch_context()
 
     # 严苛校验: 工作区不干净、有本地超前提交、或落后于远程默认分支
     if branch_info.is_dirty or branch_info.ahead > 0 or _current_branch_behind_remote_default_branch():
