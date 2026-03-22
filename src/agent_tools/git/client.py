@@ -11,6 +11,15 @@ def run_git(
     """Wrapper for git commands returning unified GitResult."""
     cmd = ["git"] + args if isinstance(args, list) else ["git"] + args.split()
     use_cwd = cwd or REPO_CWD.get()
+
+    # Industrial Debugging
+    import logging
+
+    debug_logger = logging.getLogger("agent-tools")
+    debug_logger.debug(
+        f"[DEBUG] run_git: REPO_CWD ID: {id(REPO_CWD)}, Value: {REPO_CWD.get()}, Effective CWD: {use_cwd}"
+    )
+
     try:
         res = subprocess.run(
             cmd, capture_output=True, text=True, check=check, cwd=use_cwd

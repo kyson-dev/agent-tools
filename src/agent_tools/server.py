@@ -11,7 +11,7 @@ from agent_tools.orchestrators import gh_pr_create, gh_pr_merge, git_commit, git
 from agent_tools.orchestrators import git_sync as git_sync_orch
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("agent-tools")
 
 mcp = FastMCP("agent-tools")
@@ -62,9 +62,16 @@ async def _with_cwd(
                 current = os.path.dirname(current)
 
     token = REPO_CWD.set(final_path)
+    logger.debug(
+        f"[DEBUG] _with_cwd: set REPO_CWD to {final_path} (ID: {id(REPO_CWD)})"
+    )
     try:
         # Orchestrators are sync, we run them directly
-        return func(*args, **kwargs)
+        res = func(*args, **kwargs)
+        logger.debug(
+            f"[DEBUG] _with_cwd: func returned (status: {getattr(res, 'status', 'N/A')})"
+        )
+        return res
     finally:
         REPO_CWD.reset(token)
 
