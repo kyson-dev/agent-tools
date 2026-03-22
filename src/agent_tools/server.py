@@ -6,9 +6,9 @@ from typing import Literal, cast
 
 from fastmcp import Context, FastMCP
 
-from agent_tools.context import REPO_CWD
-from agent_tools.orchestrators import gh_pr_create, gh_pr_merge, git_commit, git_release
-from agent_tools.orchestrators import git_sync as git_sync_orch
+from .context import REPO_CWD
+from .orchestrators import gh_pr_create, gh_pr_merge, git_commit, git_release
+from .orchestrators import git_sync as git_sync_orch
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)

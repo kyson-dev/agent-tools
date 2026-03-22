@@ -2,15 +2,15 @@ import json
 import logging
 from typing import Literal
 
-from agent_tools.config import get_full_commit_rules
-from agent_tools.gh import run_gh
-from agent_tools.git import (
+from ...config import get_full_commit_rules
+from ...gh import run_gh
+from ...git import (
     GitCommandError,
     get_branch_context,
     get_repo_context,
     run_git,
 )
-from agent_tools.protocol import Result
+from ...protocol import Result
 
 WORKFLOW = "gh_pr_merge"
 logger = logging.getLogger(WORKFLOW)

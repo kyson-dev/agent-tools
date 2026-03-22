@@ -9,17 +9,17 @@ so L3 can resume after resolving.
 import os
 from typing import Literal
 
-from agent_tools.config import (
+from ...config import (
     get_allow_direct_actions_to_protected,
     get_protected_branches,
 )
-from agent_tools.git import (
+from ...git import (
     GitCommandError,
     get_branch_context,
     get_repo_context,
     run_git,
 )
-from agent_tools.protocol import Result
+from ...protocol import Result
 
 WORKFLOW = "git_sync"
 

@@ -1,6 +1,6 @@
 import re
 
-from agent_tools.config import (
+from ...config import (
     get_commit_allowed_types,
     get_commit_body_wrap_length,
     get_commit_max_groups,
@@ -8,7 +8,6 @@ from agent_tools.config import (
     get_commit_subject_max_length,
     load_rules,
 )
-
 from .client import run_git
 from .transaction import GitTransaction
 from .types import GitCommitResult

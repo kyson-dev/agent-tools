@@ -1,15 +1,15 @@
 from dataclasses import asdict
 from typing import Literal
 
-from agent_tools.config import get_full_commit_rules
-from agent_tools.gh import run_gh
-from agent_tools.git import (
+from ...config import get_full_commit_rules
+from ...gh import run_gh
+from ...git import (
     GitCommandError,
     get_branch_context,
     get_commits_ahead,
     get_repo_context,
 )
-from agent_tools.protocol import Result
+from ...protocol import Result
 
 WORKFLOW = "gh_pr_create"
 

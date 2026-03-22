@@ -3,11 +3,11 @@ import re
 from dataclasses import asdict
 from typing import Literal
 
-from agent_tools.config import (
+from ...config import (
     get_full_commit_rules,
     get_release_tag_regex,
 )
-from agent_tools.git import (
+from ...git import (
     GitCommandError,
     get_branch_context,
     get_commits_ahead,
@@ -15,7 +15,7 @@ from agent_tools.git import (
     get_repo_context,
     run_git,
 )
-from agent_tools.protocol import Result
+from ...protocol import Result
 
 logger = logging.getLogger(__name__)
 WORKFLOW = "git_release"

@@ -1,7 +1,7 @@
+import os
 import subprocess
 
-from agent_tools.context import REPO_CWD
-
+from ..context import REPO_CWD
 from .types import GitResult
 
 
@@ -10,14 +10,15 @@ def run_git(
 ) -> GitResult:
     """Wrapper for git commands returning unified GitResult."""
     cmd = ["git"] + args if isinstance(args, list) else ["git"] + args.split()
-    use_cwd = cwd or REPO_CWD.get()
+    # Priority: 1. explicit cwd arg, 2. context REPO_CWD, 3. env var AGENT_TOOLS_REPO_PATH
+    use_cwd = cwd or REPO_CWD.get() or os.environ.get("AGENT_TOOLS_REPO_PATH")
 
     # Industrial Debugging
     import logging
 
     debug_logger = logging.getLogger("agent-tools")
     debug_logger.debug(
-        f"[DEBUG] run_git: REPO_CWD ID: {id(REPO_CWD)}, Value: {REPO_CWD.get()}, Effective CWD: {use_cwd}"
+        f"[DEBUG] run_git: REPO_CWD: {REPO_CWD.get()}, ENV: {os.environ.get('AGENT_TOOLS_REPO_PATH')}, Effective CWD: {use_cwd}"
     )
 
     try:
