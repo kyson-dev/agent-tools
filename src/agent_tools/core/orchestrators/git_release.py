@@ -123,7 +123,8 @@ def _handle_release(tag_json_str: str) -> Result:
     try:
         data = json.loads(tag_json_str)
         tag_name = data.get("tag_name")
-        tag_message = data.get("tag_message", f"Release {tag_name}")
+        # Ensure tag_message is always a string, defaulting to a standard format if not provided
+        tag_message = data.get("tag_message") or f"Release {tag_name}"
     except json.JSONDecodeError:
         return Result(
             status="error",
