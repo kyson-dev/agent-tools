@@ -15,6 +15,7 @@ from agent_tools.infrastructure.config.manager import (
     get_allow_direct_actions_to_protected,
     get_full_commit_rules,
     get_protected_branches,
+    get_separation_rules,
 )
 
 WORKFLOW = "git_commit"
@@ -80,6 +81,7 @@ def _sense() -> Result:
             )
 
         rules_context = get_full_commit_rules()
+        separation_rules = get_separation_rules()
 
         return Result(
             status="handoff",
@@ -88,7 +90,7 @@ def _sense() -> Result:
             next_step="build_plan",
             resume_point="plan",
             instruction=(
-                "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
+                "1. All message MUST following **Conventional Commits** and `details.commit_rules` and `details.separation_rules`. "
                 "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
                 '3. Execute `git_commit_flow(point="commit", plan_json_str=\'{"commits": [{"files": [".."], "message": ".."}]}\')` with your grouping strategy.'
             ),
@@ -98,6 +100,7 @@ def _sense() -> Result:
                 "branch_info": asdict(branch_info),
                 "repo_context": asdict(repo_info),
                 "commit_rules": rules_context,
+                "separation_rules": separation_rules,
             },
         )
 

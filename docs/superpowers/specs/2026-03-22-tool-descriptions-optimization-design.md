@@ -62,6 +62,12 @@
 
 直接在 `src/agent_tools/server/mcp_server.py` 中更新各函数的异步声明下方的字符串定义。
 
+### 3.1 维护指南 (Maintenance Guide)
+为了保持 LLM 识别的一致性，未来所有新增到 `mcp_server.py` 的工具**必须**遵循以下格式要求：
+- 必须包含加粗的中文核心标题。
+- 必须包含大写的英文强制指令（USE THIS TOOL...）。
+- 必须包含结构化的 Keywords 列表。
+
 ## 4. 验收标准 (Acceptance Criteria)
 
 - [ ] LLM 能够识别简短的中文短语（如“提交代码”）并正确调用 `git_commit_flow`。

@@ -171,6 +171,11 @@ def get_full_commit_rules() -> dict[str, Any]:
         "message_regex": get_commit_message_regex(),
         "subject_max_length": get_commit_subject_max_length(),
         "body_wrap_length": get_commit_body_wrap_length(),
+    }
+
+
+def get_separation_rules() -> dict[str, Any]:
+    return {
         "grouping_signals": get_commit_grouping_signals(),
         "max_groups": get_commit_max_groups(),
     }
