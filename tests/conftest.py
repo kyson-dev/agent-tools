@@ -1,6 +1,10 @@
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from agent_tools.context import REPO_CWD
+
 
 class GitTester:
     def __init__(self, repo_path: Path):
@@ -26,3 +30,23 @@ class GitTester:
 
     def create_branch(self, name: str):
         self.run(["checkout", "-b", name])
+
+
+@pytest.fixture
+def temp_git_repo(tmp_path):
+    repo_path = tmp_path / "test_repo"
+    repo_path.mkdir()
+
+    # Init git
+    subprocess.run(["git", "init"], cwd=repo_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"], cwd=repo_path, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True
+    )
+
+    # Set context
+    token = REPO_CWD.set(str(repo_path))
+    yield GitTester(repo_path)
+    REPO_CWD.reset(token)
