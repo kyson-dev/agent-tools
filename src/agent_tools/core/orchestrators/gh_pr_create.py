@@ -89,8 +89,8 @@ def _handle_init() -> Result:
 def _handle_sense() -> Result:
     """Stage 1: Context gathering and planning."""
 
-    repo_info = get_repo_context()
-    branch_info = get_branch_context()
+    repo_info = get_repo_context(refresh=True)
+    branch_info = get_branch_context(refresh=True)
     base = repo_info.default_branch
     if not base:
         return Result(status="error", message="Default branch unknown.", workflow=WORKFLOW)

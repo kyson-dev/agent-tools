@@ -88,7 +88,7 @@ def _handle_init() -> Result:
 def _handle_sense() -> Result:
     """Stage 1: PR analysis and message synthesis."""
 
-    branch_info = get_branch_context()
+    branch_info = get_branch_context(refresh=True)
     if not branch_info.current_branch:
         return Result(status="error", message="Current branch unknown.", workflow=WORKFLOW)
 
@@ -206,7 +206,7 @@ def _handle_merge(override_json_str: str) -> Result:
             workflow=WORKFLOW,
         )
 
-    branch_info = get_branch_context()
+    branch_info = get_branch_context(refresh=True)
     if not branch_info.current_branch:
         return Result(status="error", message="Current branch unknown.", workflow=WORKFLOW)
 
@@ -237,7 +237,7 @@ def _handle_merge(override_json_str: str) -> Result:
 
     # Local Cleanup & Sync Feedback
     cleanup_msg = "Merged successfully."
-    repo_info = get_repo_context()
+    repo_info = get_repo_context(refresh=True)
     remote = repo_info.primary_remote
 
     if not branch_info.is_dirty:

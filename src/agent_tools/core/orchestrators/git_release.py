@@ -174,7 +174,7 @@ def _handle_release(tag_json_str: str) -> Result:
 
     # Create Annotated Tag
     run_git(["tag", "-a", name, "-m", message]).raise_on_error("Tag creation failed")
-    repo_info = get_repo_context()
+    repo_info = get_repo_context(refresh=True)
     remote = repo_info.primary_remote
     if not remote:
         return Result(status="error", message="No remote origin.", workflow=WORKFLOW)

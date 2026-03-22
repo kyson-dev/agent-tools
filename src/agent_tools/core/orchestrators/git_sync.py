@@ -72,8 +72,8 @@ def _pause_for_conflict(current_point: str) -> Result:
     )
 
 
-def _is_protected_branch() -> bool:
-    branch_info = get_branch_context()
+def _is_protected_branch(refresh: bool = False) -> bool:
+    branch_info = get_branch_context(refresh=refresh)
     if not branch_info.current_branch:
         # If current branch is unknown, it cannot be a protected branch.
         # This case should ideally be caught by _check_safety_guards,
@@ -133,7 +133,7 @@ def _handle_current_rebase() -> Result:
         if not res.ok:
             return _pause_for_conflict("current_rebase")
     else:
-        branch_info = get_branch_context()
+        branch_info = get_branch_context(refresh=True)
         if branch_info.upstream and branch_info.behind > 0:
             res = run_git(["pull", "--rebase"])
             if not res.ok:
@@ -149,8 +149,8 @@ def _handle_rebase_main() -> Result:
         if not res.ok:
             return _pause_for_conflict("rebase_main")
     else:
-        branch_info = get_branch_context()
-        repo_info = get_repo_context()
+        branch_info = get_branch_context(refresh=True)
+        repo_info = get_repo_context(refresh=True)
 
         if not repo_info.default_branch:
             return Result(status="error", message="Default branch unknown.", workflow=WORKFLOW)
@@ -166,9 +166,8 @@ def _handle_rebase_main() -> Result:
 
 def _handle_push() -> Result:
     """Stage 4: Safe push."""
-    branch_info = get_branch_context()
-
-    is_protected = _is_protected_branch()
+    branch_info = get_branch_context(refresh=True)
+    is_protected = _is_protected_branch(refresh=True)
 
     if branch_info.ahead == 0:
         return Result(
