@@ -57,6 +57,7 @@ def _handle_init() -> Result:
         next_step="SYNC_BEFORE_PR",
         resume_point="sense",
         instruction=(
+            "【ACTION】\n"
             "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
             "2. After sync, call 'gh_pr_create_flow' with point='sense'."
         ),
@@ -86,13 +87,16 @@ def _handle_sense() -> Result:
         next_step="SYNTHESIZE_PR_DESCRIPTION",
         resume_point="create",
         instruction=(
+            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【ACTION】\n"
             "1. Review 'commits' in details.\n"
-            "2. Synthesize a professional PR title and body (markdown).\n"
-            "3. Call 'gh_pr_create_flow' with point='create' and your draft_json_str."
+            "2. Synthesize a professional PR title (Conventional Commit style) and a structured markdown body.\n"
+            "3. Mention any relevant issue numbers if known.\n"
+            "4. Call 'gh_pr_create_flow' with point='create' and your 'draft_json_str', formatted according to 'details.json_format'."
         ),
         constraints=[
-            "Title MUST follow Conventional Commit style if applicable.",
-            "Body MUST summarize technical changes clearly.",
+            "Title MUST follow the 'type(scope): description' format.",
+            "Body MUST include 'Summary' and 'Test Plan' sections.",
         ],
         details={
             "owner": repo_info.owner,
@@ -100,6 +104,10 @@ def _handle_sense() -> Result:
             "head": branch_info.current_branch,
             "base": base,
             "commits": [asdict(c) for c in commits],
+            "json_format": {
+                "title": "feat(core): add JSON schema to results",
+                "body": "## Summary\n- Added json_format to handoff details.\n\n## Test Plan\n- Verified via pytest.",
+            },
             "commit_rules": get_full_commit_rules(),
         },
     )
@@ -154,11 +162,21 @@ def _handle_create(draft_json_str: str) -> Result:
             details={"pr_url": pr_url},
         )
 
+    # Handle specific GH CLI errors
+    if "already exists" in res.stderr.lower():
+        return Result(
+            status="handoff",
+            message="A Pull Request for this branch already exists.",
+            workflow=WORKFLOW,
+            next_step="VIEW_EXISTING_PR",
+            instruction="Run 'gh pr view --web' or 'gh pr list' to find the existing PR.",
+        )
+
     return Result(
         status="error",
         message=f"GitHub CLI error: {res.stderr}",
         workflow=WORKFLOW,
-        instruction="Check if PR already exists or if you have permission to push.",
+        instruction="Verify your GitHub credentials and push permissions.",
     )
 
 

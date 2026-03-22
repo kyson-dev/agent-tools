@@ -94,7 +94,7 @@ def _handle_init() -> Result:
             message="Worktree is dirty.",
             workflow=WORKFLOW,
             resume_point="init",
-            instruction="Please commit or stash your changes before syncing.",
+            instruction="Please using 'git_commit_flow' to commit your changes before syncing.",
         )
 
     repo_info = get_repo_context(refresh=True)

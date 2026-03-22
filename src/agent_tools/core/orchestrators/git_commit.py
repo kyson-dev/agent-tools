@@ -9,8 +9,6 @@ from agent_tools.infrastructure.clients.git import (
     execute_commit_plan,
     get_branch_context,
     get_diff_summary,
-    get_repo_context,
-    run_git,
 )
 from agent_tools.infrastructure.config.manager import (
     get_allow_direct_actions_to_protected,
@@ -36,7 +34,8 @@ def _check_preconditions() -> Result | None:
         )
 
     if (
-        branch_info.current_branch in get_protected_branches()
+        branch_info.current_branch
+        and branch_info.current_branch in get_protected_branches()
         and not get_allow_direct_actions_to_protected()
     ):
         return Result(
@@ -50,23 +49,22 @@ def _check_preconditions() -> Result | None:
 
 
 def _handle_sense() -> Result:
-    """Stage 1: Analyze changes and rules."""
+    """Stage 1: Analyze workspace state without destructive side effects."""
     guard = _check_preconditions()
     if guard:
         return guard
 
-    # Stage changes
-    add_res = run_git(["add", "."])
-    if not add_res.ok:
-        return Result(
-            status="error",
-            message="Failed to stage files.",
-            workflow=WORKFLOW,
-            details={"stderr": add_res.stderr},
-            instruction="Please check for file locks or permissions and try again.",
-        )
-
+    # Capture current state before any 'add'
     diff_info = get_diff_summary()
+
+    # Check for sensitive files (e.g., .env, secrets)
+    sensitive_patterns = [".env", "key", "secret", "token", "password"]
+    risk_files = [
+        f.filepath
+        for f in diff_info.changed_files
+        if any(p in f.filepath.lower() for p in sensitive_patterns)
+    ]
+
     if not diff_info.changed_files:
         return Result(
             status="success",
@@ -74,35 +72,50 @@ def _handle_sense() -> Result:
             workflow=WORKFLOW,
         )
 
+    staged = [f.filepath for f in diff_info.changed_files if f.status_code[0] != " "]
+    unstaged = [f.filepath for f in diff_info.changed_files if f.status_code[1] != " "]
+
     return Result(
         status="handoff",
-        message="Ready to build commit plan.",
+        message="Workspace analyzed. Ready to build commit plan.",
         workflow=WORKFLOW,
         next_step="BUILD_COMMIT_PLAN",
         resume_point="commit",
         instruction=(
-            "1. Review the 'changed_files' and 'diff_summary' in details.\n"
-            "2. Group changes logically based on 'separation_rules'.\n"
-            "3. Draft commit messages following **Conventional Commits** and 'commit_rules'.\n"
-            "4. Call 'git_commit_flow' with point='commit' and your plan_json_str."
+            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【ACTION】\n"
+            "1. Review 'staged' vs 'unstaged' files in details.\n"
+            "2. Decide which files should be committed together based on 'separation_rules'.\n"
+            "3. Draft commit messages following Conventional Commits.\n"
+            "4. Call 'git_commit_flow' with point='commit' and your 'plan_json_str', formatted according to 'details.json_format'.\n"
+            "【SAFETY】Check 'risk_files' carefully. NEVER commit secrets or large binaries accidentally."
         ),
         constraints=[
-            "Do NOT combine unrelated changes into a single commit.",
-            "Do NOT bypass Conventional Commit formatting.",
+            "Do NOT commit files listed in 'risk_files' unless explicitly intended.",
+            "Each commit message MUST follow Conventional Commits.",
         ],
         details={
-            "changed_files": [asdict(f) for f in diff_info.changed_files],
+            "staged_files": staged,
+            "unstaged_files": unstaged,
+            "risk_files": risk_files,
             "diff_summary": diff_info.diff_summary,
+            "json_format": {
+                "commits": [
+                    {
+                        "files": ["file1.py", "file2.py"],
+                        "message": "feat(scope): short description\n\nDetailed body...",
+                    }
+                ]
+            },
             "commit_rules": get_full_commit_rules(),
             "separation_rules": get_separation_rules(),
             "branch_info": asdict(get_branch_context()),
-            "repo_info": asdict(get_repo_context()),
         },
     )
 
 
 def _handle_commit(plan_json_str: str) -> Result:
-    """Stage 2: Execute the provided commit plan."""
+    """Stage 2: Execute the provided commit plan with validation."""
     guard = _check_preconditions()
     if guard:
         return guard
@@ -116,17 +129,17 @@ def _handle_commit(plan_json_str: str) -> Result:
             workflow=WORKFLOW,
             resume_point="commit",
             instruction="Fix the JSON formatting error and resubmit the plan.",
-            details={"received_str": plan_json_str},
         )
 
     try:
+        # execute_commit_plan handles 'git add' for files specified in the plan
         commit_res = execute_commit_plan(plan)
         if not commit_res.ok:
             return Result(
                 status="error",
                 message=f"Commit execution failed: {commit_res.message}",
                 workflow=WORKFLOW,
-                instruction="Investigate the git error above. You may need to manually fix conflicts or configuration.",
+                instruction="Investigate the git error. You may need to manually resolve issues.",
             )
 
         return Result(
@@ -140,7 +153,7 @@ def _handle_commit(plan_json_str: str) -> Result:
             status="error",
             message=f"Git error: {e.stderr}",
             workflow=WORKFLOW,
-            instruction="Fix the underlying git issue and restart the commit flow.",
+            instruction="Fix the underlying git issue and restart the flow.",
         )
 
 
@@ -148,21 +161,22 @@ def git_commit_flow(
     point: Literal["sense", "commit"] = "sense", plan_json_str: str = ""
 ) -> Result:
     """Industrial-grade git commit flow orchestrator."""
+    handlers = {
+        "sense": _handle_sense,
+        "commit": lambda: _handle_commit(plan_json_str),
+    }
+
     try:
-        if point == "sense":
-            return _handle_sense()
-        if point == "commit":
-            return _handle_commit(plan_json_str)
-        return Result(
-            status="error",
-            message=f"Unknown resume point: {point}",
-            workflow=WORKFLOW,
-        )
+        handler = handlers.get(point)
+        if not handler:
+            return Result(
+                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
+            )
+        return handler()
     except Exception as e:
-        logger.exception("Unexpected error in git_commit_flow")
+        logger.exception("Commit workflow crash")
         return Result(
             status="error",
-            message=f"Unexpected error: {str(e)}",
+            message=f"Git commit flow error: {str(e)}",
             workflow=WORKFLOW,
-            instruction="Please report this bug to the developer.",
         )

@@ -55,6 +55,7 @@ def _handle_init() -> Result:
         next_step="SYNC_BEFORE_RELEASE",
         resume_point="sense",
         instruction=(
+            "【ACTION】\n"
             "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
             "2. After sync, call 'git_release_flow' with point='sense'."
         ),
@@ -82,19 +83,25 @@ def _handle_sense() -> Result:
         next_step="PLAN_VERSION_BUMP",
         resume_point="release",
         instruction=(
-            "1. Analyze 'commits' in details to determine the next SemVer.\n"
-            "2. Search for version files (pyproject.toml, package.json, etc.) and propose increments.\n"
-            "3. Present the release draft to the user and await authorization.\n"
-            "4. After approval, update version files and commit.\n"
-            "5. Finally, call 'git_release_flow' with point='release' and your tag_json_str."
+            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【ACTION】\n"
+            "1. Analyze 'commits' in details to determine the next SemVer increment (Major/Minor/Patch).\n"
+            "2. Read versioning files (e.g., pyproject.toml, package.json) to find the current version.\n"
+            "3. Draft a Release Note (Changelog) based on commit messages.\n"
+            "4. PRESENT the draft and the new version to the user for explicit approval.\n"
+            "5. After approval, update files, commit using 'git_commit_flow', and THEN call 'git_release_flow' with point='release' and your 'tag_json_str', formatted according to 'details.json_format'."
         ),
         constraints=[
             "Tag MUST match the regex in details.",
-            "Do NOT bypass user authorization for version bumps.",
+            "Do NOT proceed with the 'release' point without user approval of the version bump.",
         ],
         details={
             "latest_tag": latest_tag,
             "commits": [asdict(c) for c in commits],
+            "json_format": {
+                "tag_name": "v1.2.3",
+                "tag_message": "Release description...",
+            },
             "tag_regex": get_release_tag_regex(),
             "commit_rules": get_full_commit_rules(),
             "branch_info": asdict(get_branch_context()),
@@ -136,10 +143,18 @@ def _handle_release(tag_json_str: str) -> Result:
         run_git(["tag", "-a", tag_name, "-m", tag_message]).raise_on_error(
             "Tag creation failed"
         )
-        # Atomic Push
-        run_git(["push", "origin", "--atomic", "HEAD", tag_name]).raise_on_error(
-            "Atomic push failed"
-        )
+
+        # Push HEAD and tag atomically
+        res = run_git(["push", "origin", "--atomic", "HEAD", tag_name])
+        if not res.ok:
+            # Cleanup tag if push failed to allow retry
+            run_git(["tag", "-d", tag_name])
+            return Result(
+                status="error",
+                message=f"Atomic push failed: {res.stderr}",
+                workflow=WORKFLOW,
+                instruction="Investigate the push error (e.g., remote tag already exists) and retry.",
+            )
 
         return Result(
             status="success",
@@ -152,7 +167,7 @@ def _handle_release(tag_json_str: str) -> Result:
             status="error",
             message=f"Git error during release: {e.stderr}",
             workflow=WORKFLOW,
-            instruction="Resolve the git issue (e.g., tag already exists) and retry.",
+            instruction="Resolve the git issue and retry.",
         )
 
 
