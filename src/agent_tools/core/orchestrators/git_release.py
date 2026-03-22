@@ -122,10 +122,10 @@ def _handle_sense() -> Result:
             "【STRICT PROTOCOL / 严格协议】\n"
             "1. Analyze 'commits' in details to determine the next SemVer increment.\n"
             "2. Read versioning files to find current version. If already updated via recent merges, proceed to step 4.\n"
-            "3. If version bump is needed:\n"
+            "3. If version bump is needed (【PAUSE】You MUST propose the new version and its rationale, then WAIT for USER approval before proceeding):\n"
             f"   - **IF PROTECTED (is_protected={is_protected})**: Use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
             f"   - **ELSE**: Update and commit directly using 'git_commit_flow'.\n"
-            "4. Finalize with 'git_release_flow' (point='release', tag_json_str=formatted according to 'details.json_format)."
+            "4. Finalize with 'git_release_flow' (point='release'), providing a structured message with descriptive title and categorized changes (Features, Bug Fixes, Refactors)."
         ),
         constraints=[
             "Tag MUST match the regex in details.",
@@ -138,7 +138,12 @@ def _handle_sense() -> Result:
             "is_protected": is_protected,
             "json_format": {
                 "name": "v1.2.3",
-                "message": "Release description...",
+                "message": (
+                    "v1.2.3: Descriptive Title Summary\n\n"
+                    "### 🚀 Features\n- List key new features here.\n\n"
+                    "### 🐛 Bug Fixes\n- List important bug fixes here.\n\n"
+                    "### ⚙️ Refactors\n- List major internal improvements here."
+                ),
             },
             "tag_regex": get_release_tag_regex(),
             "commit_rules": get_full_commit_rules(),
