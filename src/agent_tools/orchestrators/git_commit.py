@@ -1,28 +1,28 @@
 import json
 from dataclasses import asdict
-from typing import Optional, Literal
+from typing import Literal
 
-from agent_tools.protocol import Result
-from agent_tools.git import (
-    run_git,
-    get_branch_context,
-    get_repo_context,
-    get_diff_summary,
-    execute_commit_plan,
-    GitCommandError
-)
 from agent_tools.config import (
-    get_protected_branches,
     get_allow_direct_actions_to_protected,
-    get_full_commit_rules
+    get_full_commit_rules,
+    get_protected_branches,
 )
+from agent_tools.git import (
+    GitCommandError,
+    execute_commit_plan,
+    get_branch_context,
+    get_diff_summary,
+    get_repo_context,
+    run_git,
+)
+from agent_tools.protocol import Result
 
 WORKFLOW = "git_commit"
 
 
-def _check_preconditions() -> Optional[Result]:
+def _check_preconditions() -> Result | None:
     """Shared pre-condition guards for both sense and execute.
-    
+
     Returns a Result if a guard fails, otherwise None (all clear).
     """
     branch_info = get_branch_context()
@@ -36,7 +36,10 @@ def _check_preconditions() -> Optional[Result]:
         )
 
     # Guard: protected branch
-    if branch_info.current_branch in get_protected_branches() and not get_allow_direct_actions_to_protected():
+    if (
+        branch_info.current_branch in get_protected_branches()
+        and not get_allow_direct_actions_to_protected()
+    ):
         return Result(
             status="error",
             message=f"Branch '{branch_info.current_branch}' is protected. Direct commits are restricted.",
@@ -87,7 +90,7 @@ def _sense() -> Result:
             instruction=(
                 "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
                 "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
-                "3. Execute `git_commit_flow(point=\"commit\", plan_json_str='{\"commits\": [{\"files\": [\"...\"], \"message\": \"...\"}]}')` with your grouping strategy."
+                '3. Execute `git_commit_flow(point="commit", plan_json_str=\'{"commits": [{"files": ["..."], "message": "..."}]}\')` with your grouping strategy.'
             ),
             details={
                 "changed_files": [asdict(f) for f in changed_files],
@@ -99,9 +102,16 @@ def _sense() -> Result:
         )
 
     except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW, details={"command": e.command, "stderr": e.stderr})
+        return Result(
+            status="error",
+            message=str(e),
+            workflow=WORKFLOW,
+            details={"command": e.command, "stderr": e.stderr},
+        )
     except Exception as e:
-        return Result(status="error", message=f"Sense error: {str(e)}", workflow=WORKFLOW)
+        return Result(
+            status="error", message=f"Sense error: {str(e)}", workflow=WORKFLOW
+        )
 
 
 def _commit(plan_json_str: str) -> Result:
@@ -113,11 +123,22 @@ def _commit(plan_json_str: str) -> Result:
 
         plan = json.loads(plan_json_str)
     except json.JSONDecodeError:
-        return Result(status="error", message="Invalid plan: expected a JSON string.", workflow=WORKFLOW)
+        return Result(
+            status="error",
+            message="Invalid plan: expected a JSON string.",
+            workflow=WORKFLOW,
+        )
     except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW, details={"command": e.command, "stderr": e.stderr})
+        return Result(
+            status="error",
+            message=str(e),
+            workflow=WORKFLOW,
+            details={"command": e.command, "stderr": e.stderr},
+        )
     except Exception as e:
-        return Result(status="error", message=f"Execute setup error: {str(e)}", workflow=WORKFLOW)
+        return Result(
+            status="error", message=f"Execute setup error: {str(e)}", workflow=WORKFLOW
+        )
 
     try:
         commit_res = execute_commit_plan(plan)
@@ -138,18 +159,33 @@ def _commit(plan_json_str: str) -> Result:
         )
 
     except GitCommandError as e:
-        return Result(status="error", message=str(e), workflow=WORKFLOW, details={"command": e.command, "stderr": e.stderr})
+        return Result(
+            status="error",
+            message=str(e),
+            workflow=WORKFLOW,
+            details={"command": e.command, "stderr": e.stderr},
+        )
     except Exception as e:
-        return Result(status="error", message=f"Execute error: {str(e)}", workflow=WORKFLOW)
+        return Result(
+            status="error", message=f"Execute error: {str(e)}", workflow=WORKFLOW
+        )
 
 
-def git_commit_flow(point: Literal["sense", "commit"]="sense", plan_json_str: str = "") -> Result:
+def git_commit_flow(
+    point: Literal["sense", "commit"] = "sense", plan_json_str: str = ""
+) -> Result:
     try:
         if point == "sense":
             return _sense()
         elif point == "commit":
             return _commit(plan_json_str)
+        else:
+            raise ValueError(f"Unknown point: {point}")
     except GitCommandError as e:
         return Result(status="error", message=str(e), workflow=WORKFLOW)
     except Exception as e:
-        return Result(status="error", message=f"Git commit flow error: {str(e)}", workflow=WORKFLOW)
+        return Result(
+            status="error",
+            message=f"Git commit flow error: {str(e)}",
+            workflow=WORKFLOW,
+        )

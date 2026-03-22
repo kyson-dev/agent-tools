@@ -1,12 +1,11 @@
-from typing import List
+from agent_tools.config import get_diff_max_lines_per_file, get_diff_max_total_lines
 
 from .client import run_git
 from .repo import get_repo_context
 from .types import DiffSummary, FileStatus
-from agent_tools.config import get_diff_max_total_lines, get_diff_max_lines_per_file
 
 
-def get_git_status() -> List[FileStatus]:
+def get_git_status() -> list[FileStatus]:
     """Returns a list of changed files and their porcelain status codes.
 
     Raises:
@@ -56,8 +55,9 @@ def truncate_diff(diff_text: str, max_lines: int) -> str:
 def truncate_diff_per_file(diff_text: str, max_lines_per_file: int) -> str:
     """Truncates each file's diff independently to max_lines_per_file."""
     import re
+
     # Split on file boundaries: 'diff --git a/... b/...'
-    file_chunks = re.split(r'(?=^diff --git )', diff_text, flags=re.MULTILINE)
+    file_chunks = re.split(r"(?=^diff --git )", diff_text, flags=re.MULTILINE)
     result_chunks = []
     for chunk in file_chunks:
         if not chunk.strip():
@@ -68,7 +68,9 @@ def truncate_diff_per_file(diff_text: str, max_lines_per_file: int) -> str:
             head = lines[:half]
             tail = lines[-half:]
             omitted = len(lines) - max_lines_per_file
-            chunk = "\n".join(head + [f"\n... [TRUNCATED {omitted} lines in this file] ...\n"] + tail)
+            chunk = "\n".join(
+                head + [f"\n... [TRUNCATED {omitted} lines in this file] ...\n"] + tail
+            )
         result_chunks.append(chunk)
     return "\n".join(result_chunks)
 

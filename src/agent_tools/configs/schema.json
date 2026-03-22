@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Tools Configuration Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["git"],
+  "properties": {
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["safety", "commit", "diff", "release"],
+      "properties": {
+        "safety": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["protected_branches", "allow_direct_actions_to_protected"],
+          "properties": {
+            "protected_branches": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "allow_direct_actions_to_protected": { 
+              "type": "boolean"
+            }
+          }
+        },
+        "commit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowed_types", "message_regex", "subject_max_length", "body_wrap_length", "grouping_signals", "max_groups"],
+          "properties": {
+            "allowed_types": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "message_regex": { 
+              "type": "string"
+            },
+            "subject_max_length": { "type": "integer" },
+            "body_wrap_length": { "type": "integer" },
+            "grouping_signals": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "max_groups": { "type": "integer" }
+          }
+        },
+        "diff": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["max_diff_lines_per_file", "max_total_diff_lines"],
+          "properties": {
+            "max_diff_lines_per_file": { "type": "integer" },
+            "max_total_diff_lines": { "type": "integer" }
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tag_regex"],
+          "properties": {
+            "tag_regex": { 
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -9,7 +9,13 @@ Thumbs.db
 
 # Python
 __pycache__/
-.pytest_cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.env
+.env.*
+uv.lock
 *.py[cod]
 *$py.class
 *.so
@@ -40,3 +46,8 @@ wheels/
 # Project specific
 .gemini/
 .agents/brain/
+
+# Local configuration overrides (if any)
+# Note: .agent/configs/rules.yaml is currently used for project defaults.
+# If you want to support local-only rules, you could add:
+# .agent/configs/local_rules.yaml

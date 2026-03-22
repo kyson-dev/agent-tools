@@ -1,0 +1,34 @@
+#!/bin/bash
+# --- Agent Tools Industrial-grade Pre-commit Hook ---
+# This hook ensures all changes meet quality standards BEFORE committing.
+
+echo "🔍 Running pre-commit quality checks..."
+
+# 1. 自动执行格式对齐和 Lint 修复
+make fix
+FIX_RESULT=$?
+
+if [ $FIX_RESULT -ne 0 ]; then
+    echo "🚨 ERROR: Automatic fix (make fix) failed!"
+    exit 1
+fi
+
+# 2. 自动把修复后的代码重新同步到暂存区 (Staging Area)
+# 这一步是点睛之笔：如果在 fix 过程中有文件被修改，它们将被自动加入本次提交
+# 注意：我们只同步那些已经处于暂存状态的文件修改，防止意外提交未勾选的文件
+git add -u
+
+# 3. 运行最终强类型体检 (MyPy 不太可能被自动 fix)
+make check
+CHECK_RESULT=$?
+
+if [ $CHECK_RESULT -ne 0 ]; then
+    echo ""
+    echo "🚨 ERROR: Quality checks (MyPy/Logic) still failed after auto-fix!"
+    echo "Please resolve these manual issues (usually type hints) first."
+    echo ""
+    exit 1
+fi
+
+echo "✅ Quality checks passed. Proceeding with commit..."
+exit 0

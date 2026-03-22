@@ -1,5 +1,5 @@
 from .client import run_git
-from .types import BranchContext, GitCommandError
+from .types import BranchContext
 
 
 def get_branch_context(refresh: bool = False) -> BranchContext:
@@ -39,13 +39,17 @@ def get_branch_context(refresh: bool = False) -> BranchContext:
     # --- Upstream / ahead-behind ---
     # NOTE: @{u} exits with code 128 when no upstream is set; that is NORMAL
     # (any new branch that hasn't been pushed yet). We must NOT raise here.
-    upstream_res = run_git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+    upstream_res = run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]
+    )
     upstream = upstream_res.stdout.strip() if upstream_res.ok else None
 
     ahead = 0
     behind = 0
     if upstream:
-        count_res = run_git(["rev-list", "--left-right", "--count", f"HEAD...{upstream}"])
+        count_res = run_git(
+            ["rev-list", "--left-right", "--count", f"HEAD...{upstream}"]
+        )
         count_res.raise_on_error("Failed to count commits ahead/behind upstream")
         count_str = count_res.stdout.strip()
         if count_str:
