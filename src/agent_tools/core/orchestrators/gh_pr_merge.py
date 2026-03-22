@@ -214,15 +214,27 @@ def _handle_merge(override_json_str: str) -> Result:
             instruction="Investigate why the merge failed (e.g., branch protection rules).",
         )
 
-    # Local Cleanup Feedback
+    # Local Cleanup & Sync Feedback
     cleanup_msg = "Merged successfully."
+    repo_info = get_repo_context()
+    remote = repo_info.primary_remote
+
     if not branch_info.is_dirty:
         try:
             run_git(["checkout", base_branch])
             run_git(["branch", "-D", branch_info.current_branch])
-            cleanup_msg += f" Local branch '{branch_info.current_branch}' deleted."
+            # Only attempt sync if a remote is available
+            if remote:
+                sync_res = run_git(["pull", remote, base_branch, "--rebase"])
+                if sync_res.ok:
+                    cleanup_msg += f" Local branch '{base_branch}' synchronized via '{remote}' and '{branch_info.current_branch}' cleaned up."
+                else:
+                    cleanup_msg += f" (Note: Switched to '{base_branch}', but auto-sync via '{remote}' failed: {sync_res.stderr}. You may need to resolve conflicts manually.)"
+            else:
+                cleanup_msg += f" (Note: Switched to '{base_branch}', but no remote found to sync.)"
+
         except Exception as e:
-            cleanup_msg += f" (Note: Local branch cleanup failed: {e})"
+            cleanup_msg += f" (Note: Local environment sync or cleanup failed: {e})"
     else:
         cleanup_msg += f" (Note: Branch '{branch_info.current_branch}' was NOT deleted locally because it has uncommitted changes.)"
 

@@ -155,7 +155,11 @@ def _handle_push() -> Result:
         )
 
     repo_info = get_repo_context()
-    remote = repo_info.primary_remote or "origin"
+    remote = repo_info.primary_remote
+    if not remote:
+        return Result(
+            status="error", message="No remote configured for push.", workflow=WORKFLOW
+        )
 
     if branch_info.upstream:
         push_args = ["push", "--force-with-lease"]
