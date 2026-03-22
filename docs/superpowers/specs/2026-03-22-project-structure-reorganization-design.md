@@ -41,20 +41,24 @@
     - `[tool.setuptools.package-data]` 更新为 `agent_tools = ["infrastructure/config/resources/*.yaml", "infrastructure/config/resources/*.json"]`。
 
 - **导入路径**:
-    - 全局更新导入语句，例如 `from agent_tools.orchestrators import ...` -> `from agent_tools.core.orchestrators import ...`。
+    - **优先采用绝对导入**: 全局更新导入语句，例如 `from agent_tools.core.orchestrators import ...`，以提高代码的可读性和健壮性。
 
 ## 3. 迁移方案 (Migration Plan)
 
-1.  **准备阶段**: 创建所有目标文件夹。
+1.  **准备阶段**: 
+    - 创建所有目标文件夹。
+    - 在每个新目录下创建 `__init__.py` 以确保它们被识别为 Python 包。
 2.  **文件迁移**: 按映射关系移动物理文件。
-3.  **导入修复**: 使用批量替换或 IDE 工具修复导入路径。
+3.  **导入修复**: 
+    - 全局修复 `src/` 下的导入路径。
+    - **同步更新 `tests/`**: 修复测试套件中的导入路径，确保验证阶段顺利进行。
 4.  **环境更新**: 运行 `pip install -e .` 以应用新的入口点和包元数据。
 5.  **验证阶段**: 运行测试套件。
 
 ## 4. 风险与对策 (Risks & Mitigations)
 
 - **导入冲突**: 可能会遗漏部分深层引用。对策：使用 `ruff` 或 `mypy` 进行全量静态扫描。
-- **打包资源丢失**: 相对路径变更可能导致打包后找不到 `rules.yaml`。对策：在 `manager.py` 中使用 `Path(__file__).parent / "resources" / ...` 进行定位。
+- **打包资源丢失**: 相对路径变更可能导致打包后找不到 `rules.yaml`。对策：在 `manager.py` 中更新 `get_base_dir()` 和资源定位逻辑。由于 `manager.py` 的深度从 `agent_tools/config.py` 变为 `agent_tools/infrastructure/config/manager.py`，需增加一次 `.parent` 调用以正确指向包根目录。
 
 ## 5. 验收标准 (Acceptance Criteria)
 
