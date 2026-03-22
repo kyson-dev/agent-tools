@@ -15,7 +15,7 @@ logger = logging.getLogger("agent-tools-mcp")
 mcp = FastMCP("agent-tools")
 
 
-def _with_cwd(func, repo_path: str, point: str, *args, **kwargs):
+def _with_cwd(func, repo_path: str, *args, **kwargs):
     """Context-aware wrapper to setup working directory safely using ContextVars."""
     if repo_path and os.path.isdir(repo_path):
         token = REPO_CWD.set(repo_path)

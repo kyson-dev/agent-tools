@@ -174,14 +174,24 @@ def _commit(plan_json_str: str) -> Result:
 def git_commit_flow(
     point: Literal["sense", "commit"] = "sense", plan_json_str: str = ""
 ) -> Result:
+    import logging
+
+    logger = logging.getLogger(WORKFLOW)
+    logger.info(f"DEBUG: git_commit_flow called with point={point}")
     try:
         if point == "sense":
+            logger.info("DEBUG: Calling _sense()")
             return _sense()
         elif point == "commit":
+            logger.info("DEBUG: Calling _commit()")
             return _commit(plan_json_str)
+        else:
+            raise ValueError(f"Unknown point: {point}")
     except GitCommandError as e:
+        logger.error(f"DEBUG: GitCommandError: {e}")
         return Result(status="error", message=str(e), workflow=WORKFLOW)
     except Exception as e:
+        logger.error(f"DEBUG: Unexpected Exception: {e}")
         return Result(
             status="error",
             message=f"Git commit flow error: {str(e)}",
