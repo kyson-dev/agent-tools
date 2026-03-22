@@ -74,9 +74,7 @@ def _handle_sense() -> Result:
     branch_info = get_branch_context()
     base = repo_info.default_branch
     if not base:
-        return Result(
-            status="error", message="Default branch is required.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Default branch is required.", workflow=WORKFLOW)
 
     commits = get_commits_ahead(base)
 
@@ -120,9 +118,7 @@ def _handle_create(draft_json_str: str) -> Result:
         title = data.get("title")
         body = data.get("body")
     except json.JSONDecodeError:
-        return Result(
-            status="error", message="Invalid JSON in draft_json_str.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Invalid JSON in draft_json_str.", workflow=WORKFLOW)
 
     if not title or not body:
         return Result(
@@ -135,9 +131,7 @@ def _handle_create(draft_json_str: str) -> Result:
     branch_info = get_branch_context()
 
     if not repo_info.default_branch or not branch_info.current_branch:
-        return Result(
-            status="error", message="Missing branch information.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Missing branch information.", workflow=WORKFLOW)
 
     args = [
         "pr",
@@ -180,9 +174,7 @@ def _handle_create(draft_json_str: str) -> Result:
     )
 
 
-def gh_pr_create_flow(
-    point: Literal["init", "sense", "create"] = "init", draft_json_str: str = ""
-) -> Result:
+def gh_pr_create_flow(point: Literal["init", "sense", "create"] = "init", draft_json_str: str = "") -> Result:
     """Industrial-grade GitHub PR creation flow orchestrator."""
     handlers = {
         "init": _handle_init,
@@ -193,12 +185,8 @@ def gh_pr_create_flow(
     try:
         handler = handlers.get(point)
         if not handler:
-            return Result(
-                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
-            )
+            return Result(status="error", message=f"Invalid point: {point}", workflow=WORKFLOW)
         return handler()
     except Exception as e:
         logger.exception("PR creation workflow crash")
-        return Result(
-            status="error", message=f"PR create failed: {str(e)}", workflow=WORKFLOW
-        )
+        return Result(status="error", message=f"PR create failed: {str(e)}", workflow=WORKFLOW)

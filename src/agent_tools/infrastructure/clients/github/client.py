@@ -4,19 +4,13 @@ from agent_tools.infrastructure.clients.git.git_types import GitResult
 from agent_tools.infrastructure.config.context import REPO_CWD
 
 
-def run_gh(
-    args: list[str] | str, check: bool = False, cwd: str | None = None
-) -> GitResult:
+def run_gh(args: list[str] | str, check: bool = False, cwd: str | None = None) -> GitResult:
     """Wrapper for GitHub CLI commands returning unified GitResult."""
     cmd = ["gh"] + args if isinstance(args, list) else ["gh"] + args.split()
     use_cwd = cwd or REPO_CWD.get()
     try:
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, check=check, cwd=use_cwd
-        )
-        return GitResult(
-            returncode=res.returncode, stdout=res.stdout, stderr=res.stderr, command=cmd
-        )
+        res = subprocess.run(cmd, capture_output=True, text=True, check=check, cwd=use_cwd)
+        return GitResult(returncode=res.returncode, stdout=res.stdout, stderr=res.stderr, command=cmd)
     except subprocess.CalledProcessError as e:
         return GitResult(
             returncode=e.returncode,

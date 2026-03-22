@@ -64,9 +64,7 @@ def get_repo_context(refresh: bool = False) -> RepoContext:
     # --- Default branch detection ---
     default_branch = None
     if primary_remote:
-        remote_head = run_git(
-            ["symbolic-ref", f"refs/remotes/{primary_remote}/HEAD"]
-        ).stdout.strip()
+        remote_head = run_git(["symbolic-ref", f"refs/remotes/{primary_remote}/HEAD"]).stdout.strip()
         if remote_head:
             default_branch = remote_head.split("/")[-1]
 

@@ -33,11 +33,7 @@ def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:
     body_wrap = get_commit_body_wrap_length()
 
     for idx, commit in enumerate(plan["commits"]):
-        if (
-            "files" not in commit
-            or not isinstance(commit["files"], list)
-            or len(commit["files"]) == 0
-        ):
+        if "files" not in commit or not isinstance(commit["files"], list) or len(commit["files"]) == 0:
             return (
                 False,
                 f"Commit at index {idx} must contain a non-empty 'files' array.",
@@ -51,10 +47,7 @@ def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:
 
         # --- Subject length check ---
         if len(subject) > subject_max:
-            return False, (
-                f"Commit at index {idx}: subject is {len(subject)} chars, "
-                f"max allowed is {subject_max}."
-            )
+            return False, (f"Commit at index {idx}: subject is {len(subject)} chars, max allowed is {subject_max}.")
 
         # --- Regex validation (subject only) ---
         if regex_pattern and not re.match(regex_pattern, subject):
@@ -78,8 +71,7 @@ def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:
         for line_num, line in enumerate(body_lines):
             if len(line) > body_wrap:
                 return False, (
-                    f"Commit at index {idx}: body line {line_num + 1} is {len(line)} chars, "
-                    f"max allowed is {body_wrap}."
+                    f"Commit at index {idx}: body line {line_num + 1} is {len(line)} chars, max allowed is {body_wrap}."
                 )
 
     return True, ""
@@ -147,6 +139,4 @@ def execute_commit_plan(plan: dict) -> GitCommitResult:
 
         except Exception as e:
             txn.rollback()
-            return GitCommitResult(
-                ok=False, message=f"Unexpected execution error: {str(e)}"
-            )
+            return GitCommitResult(ok=False, message=f"Unexpected execution error: {str(e)}")

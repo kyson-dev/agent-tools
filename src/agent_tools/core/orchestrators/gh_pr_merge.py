@@ -20,9 +20,7 @@ def _check_safety_guards() -> Result | None:
     """Pre-conditions for PR merging."""
     repo_info = get_repo_context(refresh=True)
     if not repo_info.owner or not repo_info.repo:
-        return Result(
-            status="error", message="GitHub context unknown.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="GitHub context unknown.", workflow=WORKFLOW)
 
     branch_info = get_branch_context(refresh=True)
     if branch_info.is_detached:
@@ -55,9 +53,7 @@ def _handle_sense() -> Result:
 
     branch_info = get_branch_context()
     if not branch_info.current_branch:
-        return Result(
-            status="error", message="Unknown current branch.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Unknown current branch.", workflow=WORKFLOW)
 
     view_res = run_gh(
         [
@@ -81,9 +77,7 @@ def _handle_sense() -> Result:
 
     # 1. State check
     if pr_data.get("state") != "OPEN":
-        return Result(
-            status="error", message=f"PR #{number} is not OPEN.", workflow=WORKFLOW
-        )
+        return Result(status="error", message=f"PR #{number} is not OPEN.", workflow=WORKFLOW)
 
     # 2. Conflict check
     if pr_data.get("mergeable") == "CONFLICTING":
@@ -177,26 +171,18 @@ def _handle_merge(override_json_str: str) -> Result:
 
     branch_info = get_branch_context()
     if not branch_info.current_branch:
-        return Result(
-            status="error", message="Unknown current branch.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Unknown current branch.", workflow=WORKFLOW)
 
-    view_res = run_gh(
-        ["pr", "view", branch_info.current_branch, "--json", "number,baseRefName"]
-    )
+    view_res = run_gh(["pr", "view", branch_info.current_branch, "--json", "number,baseRefName"])
     if view_res.returncode != 0:
-        return Result(
-            status="error", message="Failed to fetch PR info.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Failed to fetch PR info.", workflow=WORKFLOW)
 
     pr_data = json.loads(view_res.stdout)
     number = pr_data.get("number")
     base_branch = pr_data.get("baseRefName")
 
     if not number or not base_branch:
-        return Result(
-            status="error", message="Incomplete PR information.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Incomplete PR information.", workflow=WORKFLOW)
 
     # Execute Merge
     args = ["pr", "merge", str(number), "--squash", "--delete-branch"]
@@ -241,9 +227,7 @@ def _handle_merge(override_json_str: str) -> Result:
     return Result(status="success", message=cleanup_msg, workflow=WORKFLOW)
 
 
-def gh_pr_merge_flow(
-    point: Literal["init", "sense", "merge"] = "init", override_json_str: str = ""
-) -> Result:
+def gh_pr_merge_flow(point: Literal["init", "sense", "merge"] = "init", override_json_str: str = "") -> Result:
     """Industrial-grade GitHub PR merging flow orchestrator."""
     handlers = {
         "init": _handle_init,
@@ -254,12 +238,8 @@ def gh_pr_merge_flow(
     try:
         handler = handlers.get(point)
         if not handler:
-            return Result(
-                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
-            )
+            return Result(status="error", message=f"Invalid point: {point}", workflow=WORKFLOW)
         return handler()
     except Exception as e:
         logger.exception("PR merge workflow crash")
-        return Result(
-            status="error", message=f"PR merge failed: {str(e)}", workflow=WORKFLOW
-        )
+        return Result(status="error", message=f"PR merge failed: {str(e)}", workflow=WORKFLOW)

@@ -6,9 +6,7 @@ from agent_tools.infrastructure.config.context import REPO_CWD
 from .git_types import GitResult
 
 
-def run_git(
-    args: list[str] | str, check: bool = False, cwd: str | None = None
-) -> GitResult:
+def run_git(args: list[str] | str, check: bool = False, cwd: str | None = None) -> GitResult:
     """Wrapper for git commands returning unified GitResult."""
     cmd = ["git"] + args if isinstance(args, list) else ["git"] + args.split()
     # Priority: 1. explicit cwd arg, 2. context REPO_CWD, 3. env var AGENT_TOOLS_REPO_PATH
@@ -23,9 +21,7 @@ def run_git(
     )
 
     try:
-        res = subprocess.run(
-            cmd, capture_output=True, text=True, check=check, cwd=use_cwd
-        )
+        res = subprocess.run(cmd, capture_output=True, text=True, check=check, cwd=use_cwd)
         return GitResult(
             returncode=res.returncode,
             stdout=res.stdout,

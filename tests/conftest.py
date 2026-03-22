@@ -11,9 +11,7 @@ class GitTester:
         self.repo_path = repo_path
 
     def run(self, args: list[str]) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["git"] + args, cwd=self.repo_path, capture_output=True, text=True
-        )
+        return subprocess.run(["git"] + args, cwd=self.repo_path, capture_output=True, text=True)
 
     def create_file(self, path: str, content: str = "test content"):
         full_path = self.repo_path / path
@@ -39,12 +37,8 @@ def temp_git_repo(tmp_path):
 
     # Init git
     subprocess.run(["git", "init"], cwd=repo_path, check=True)
-    subprocess.run(
-        ["git", "config", "user.name", "Test User"], cwd=repo_path, check=True
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True
-    )
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
 
     # Create dummy rules to avoid loader issues
     rules_dir = repo_path / ".agent" / "configs"
@@ -58,9 +52,7 @@ def temp_git_repo(tmp_path):
         cwd=repo_path,
         check=True,
     )
-    subprocess.run(
-        ["git", "commit", "-m", "chore: initial commit"], cwd=repo_path, check=True
-    )
+    subprocess.run(["git", "commit", "-m", "chore: initial commit"], cwd=repo_path, check=True)
 
     # Set context
     token = REPO_CWD.set(str(repo_path))

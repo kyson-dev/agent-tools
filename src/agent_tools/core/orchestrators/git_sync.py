@@ -23,10 +23,7 @@ def _get_op_status() -> str | None:
     if not git_dir_res.ok:
         return None
     git_dir = git_dir_res.stdout.strip()
-    if any(
-        os.path.exists(os.path.join(git_dir, d))
-        for d in ("rebase-merge", "rebase-apply")
-    ):
+    if any(os.path.exists(os.path.join(git_dir, d)) for d in ("rebase-merge", "rebase-apply")):
         return "rebase"
     if os.path.exists(os.path.join(git_dir, "MERGE_HEAD")):
         return "merge"
@@ -99,9 +96,7 @@ def _handle_init() -> Result:
 
     repo_info = get_repo_context(refresh=True)
     if not repo_info.primary_remote:
-        return Result(
-            status="error", message="No remote configured.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="No remote configured.", workflow=WORKFLOW)
 
     return _handle_current_rebase()
 
@@ -150,16 +145,12 @@ def _handle_push() -> Result:
     """Stage 4: Safe push."""
     branch_info = get_branch_context()
     if not branch_info.current_branch:
-        return Result(
-            status="error", message="Unknown current branch.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="Unknown current branch.", workflow=WORKFLOW)
 
     repo_info = get_repo_context()
     remote = repo_info.primary_remote
     if not remote:
-        return Result(
-            status="error", message="No remote configured for push.", workflow=WORKFLOW
-        )
+        return Result(status="error", message="No remote configured for push.", workflow=WORKFLOW)
 
     if branch_info.upstream:
         push_args = ["push", "--force-with-lease"]
@@ -210,12 +201,8 @@ def git_sync_flow(
     try:
         handler = handlers.get(point)
         if not handler:
-            return Result(
-                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
-            )
+            return Result(status="error", message=f"Invalid point: {point}", workflow=WORKFLOW)
         return handler()
     except Exception as e:
         logger.exception("Sync workflow crash")
-        return Result(
-            status="error", message=f"Sync failed: {str(e)}", workflow=WORKFLOW
-        )
+        return Result(status="error", message=f"Sync failed: {str(e)}", workflow=WORKFLOW)

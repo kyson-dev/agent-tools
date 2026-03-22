@@ -71,9 +71,7 @@ def truncate_diff_per_file(diff_text: str, max_lines_per_file: int) -> str:
             head = lines[:half]
             tail = lines[-half:]
             omitted = len(lines) - max_lines_per_file
-            chunk = "\n".join(
-                head + [f"\n.. [TRUNCATED {omitted} lines in this file] ..\n"] + tail
-            )
+            chunk = "\n".join(head + [f"\n.. [TRUNCATED {omitted} lines in this file] ..\n"] + tail)
         result_chunks.append(chunk)
     return "\n".join(result_chunks)
 
