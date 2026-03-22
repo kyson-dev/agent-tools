@@ -15,13 +15,6 @@ dependencies = [
     "fastmcp>=0.1.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "ruff",
-    "mypy"
-]
-
 [project.scripts]
 kyson-mcp-agent-tools = "agent_tools.server:main"
 
@@ -49,5 +42,8 @@ agent_tools = ["configs/*.yaml", "configs/*.json"]
 
 [dependency-groups]
 dev = [
+    "pytest>=7.0.0",
+    "ruff",
+    "mypy",
     "types-pyyaml>=6.0.12.20250915",
 ]
