@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kyson-mcp-agent-tools"
-version = "0.1.11"
+version = "0.1.12"
 description = "Industrial-grade Agent Git Workflow Tools"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -39,6 +39,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 agent_tools = ["configs/*.yaml", "configs/*.json"]
+
 
 [dependency-groups]
 dev = [

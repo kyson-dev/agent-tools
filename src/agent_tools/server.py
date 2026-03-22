@@ -16,26 +16,34 @@ mcp = FastMCP("agent-tools")
 
 
 def _with_cwd(func, repo_path: str, *args, **kwargs):
-    """Context-aware wrapper to setup working directory safely using ContextVars.
+    """Context-aware wrapper to setup working directory safely using ContextVars."""
+    # Priority 1: Use the explicit repo_path if it's already an absolute directory
+    # Priority 2: Use AGENT_TOOLS_REPO_PATH environment variable if set
+    # Priority 3: Fallback to searching upwards for .git from CWD (best effort)
 
-    If repo_path is '.' it will attempt to find the git root to ensure tools like
-    git_commit_flow work correctly.
-    """
-    if repo_path == ".":
-        # Search upwards for .git directory from the current process CWD
-        current = os.path.abspath(os.getcwd())
+    env_path = os.environ.get("AGENT_TOOLS_REPO_PATH")
+
+    # If a path was provided and it exists, use it
+    if repo_path and repo_path != "." and os.path.isdir(repo_path):
+        final_path = os.path.abspath(repo_path)
+    # Otherwise, if the environment variable is set, prioritize it
+    elif env_path and os.path.isdir(env_path):
+        final_path = os.path.abspath(env_path)
+    else:
+        # Fallback recursive search logic
+        final_path = os.path.abspath(os.getcwd())
+        current = final_path
+        found = False
         while current != os.path.dirname(current):
             if os.path.isdir(os.path.join(current, ".git")):
-                repo_path = current
+                final_path = current
+                found = True
                 break
             current = os.path.dirname(current)
+        if not found:
+            logger.warning(f"Project root with .git not found using CWD: {os.getcwd()}")
 
-    if repo_path and os.path.isdir(repo_path):
-        token = REPO_CWD.set(repo_path)
-    else:
-        logger.warning(f"Invalid repo_path: {repo_path}. Using current directory.")
-        token = REPO_CWD.set(os.getcwd())
-
+    token = REPO_CWD.set(final_path)
     try:
         return func(*args, **kwargs)
     finally:
