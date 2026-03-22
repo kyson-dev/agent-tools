@@ -1,5 +1,7 @@
+import argparse
 import logging
 import os
+import sys
 from collections.abc import Callable
 from typing import Literal, cast
 
@@ -21,11 +23,56 @@ logger = logging.getLogger("agent-tools")
 mcp = FastMCP("agent-tools")
 
 
-async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
-    """设置执行上下文的仓库路径。仅依赖环境变量 AGENT_TOOLS_REPO_PATH，不再进行主动探测。"""
-    final_path = os.environ.get("AGENT_TOOLS_REPO_PATH") or os.getcwd()
-    token = REPO_CWD.set(os.path.abspath(final_path))
-    logger.debug(f"[DEBUG] _with_cwd: set REPO_CWD to {final_path}")
+async def _with_cwd(func: Callable, repo_path: str, ctx: Context | None, *args, **kwargs):
+    """Context-aware wrapper to setup working directory.
+    Restores v0.1.20 robust discovery AND adds source lineage logging.
+    """
+    final_path = None
+    source = "unknown"
+    env_path = os.environ.get("AGENT_TOOLS_REPO_PATH")
+
+    # Priority 1: Explicitly provided via Tool Argument
+    if repo_path and repo_path != "." and os.path.exists(repo_path):
+        final_path = os.path.abspath(repo_path)
+        source = "tool_argument"
+
+    # Priority 2: Environment Variable (with protective filtering)
+    if not final_path and env_path and os.path.exists(env_path) and "${" not in env_path:
+        final_path = os.path.abspath(env_path)
+        source = "environment_variable (AGENT_TOOLS_REPO_PATH)"
+
+    # Priority 3: Probe MCP session roots from IDE Context
+    if not final_path and ctx:
+        try:
+            roots = await ctx.list_roots()
+            if roots:
+                # First root provided by IDE, stripping file://
+                root_path = str(roots[0].uri).replace("file://", "")
+                if os.path.exists(root_path):
+                    final_path = root_path
+                    source = "mcp_session_roots (IDE Context)"
+        except Exception as e:
+            logger.debug(f"Could not list roots: {e}")
+
+    # Priority 4: Search upward for .git from current CWD
+    if not final_path:
+        current = os.path.abspath(os.getcwd())
+        while current != os.path.dirname(current):
+            if os.path.isdir(os.path.join(current, ".git")):
+                final_path = current
+                source = "upward_git_search (.git)"
+                break
+            current = os.path.dirname(current)
+
+    # Final Fallback
+    if not final_path:
+        final_path = os.getcwd()
+        source = "system_cwd (fallback)"
+
+    token = REPO_CWD.set(final_path)
+    # 【核心：溯源显示】让用户在 Debug 日志中一眼看到路径由来
+    logger.info(f"[PATH_RESOLUTION] Resolved REPO_CWD to '{final_path}' via [{source}]")
+
     try:
         return func(*args, **kwargs)
     finally:
@@ -37,6 +84,7 @@ async def git_commit_flow(
     ctx: Context,
     point: Literal["sense", "commit"] = "sense",
     plan_json_str: str = "",
+    repo_path: str = ".",
 ) -> str:
     """
     **【强制：优先使用】工业级 Git 提交工作流。**
@@ -47,6 +95,7 @@ async def git_commit_flow(
     """
     res = await _with_cwd(
         git_commit.git_commit_flow,
+        repo_path=repo_path,
         ctx=ctx,
         point=point,
         plan_json_str=plan_json_str,
@@ -58,6 +107,7 @@ async def git_commit_flow(
 async def git_sync_flow(
     ctx: Context,
     point: Literal["init", "current_rebase", "rebase_main", "push", "abort"] = "init",
+    repo_path: str = ".",
 ) -> str:
     """
     **【强制：优先使用】工业级 Git 同步（拉取/变基/推送）工作流。**
@@ -66,7 +116,7 @@ async def git_sync_flow(
     **场景**: 同步代码, 推送, 拉取, sync, push, pull, rebase.
     **Keywords**: sync, 同步, git sync, 推送, push, 拉取, pull, rebase, 变基.
     """
-    res = await _with_cwd(git_sync_orch.git_sync_flow, ctx=ctx, point=point)
+    res = await _with_cwd(git_sync_orch.git_sync_flow, repo_path=repo_path, ctx=ctx, point=point)
     return cast(str, res.to_json())
 
 
@@ -75,6 +125,7 @@ async def git_release_flow(
     ctx: Context,
     point: Literal["init", "sense", "release"] = "init",
     tag_json_str: str = "",
+    repo_path: str = ".",
 ) -> str:
     """
     **【强制：优先使用】工业级 Git 版本发布与标签工作流。**
@@ -85,6 +136,7 @@ async def git_release_flow(
     """
     res = await _with_cwd(
         git_release.git_release_flow,
+        repo_path=repo_path,
         ctx=ctx,
         point=point,
         tag_json_str=tag_json_str,
@@ -97,6 +149,7 @@ async def gh_pr_create_flow(
     ctx: Context,
     point: Literal["init", "sense", "create"] = "init",
     draft_json_str: str = "",
+    repo_path: str = ".",
 ) -> str:
     """
     **【强制：优先使用】GitHub Pull Request 创建工作流。**
@@ -107,6 +160,7 @@ async def gh_pr_create_flow(
     """
     res = await _with_cwd(
         gh_pr_create.gh_pr_create_flow,
+        repo_path=repo_path,
         ctx=ctx,
         point=point,
         draft_json_str=draft_json_str,
@@ -119,6 +173,7 @@ async def gh_pr_merge_flow(
     ctx: Context,
     point: Literal["init", "sense", "merge"] = "init",
     override_json_str: str = "",
+    repo_path: str = ".",
 ) -> str:
     """
     **【强制：优先使用】GitHub Pull Request 合并工作流。**
@@ -129,6 +184,7 @@ async def gh_pr_merge_flow(
     """
     res = await _with_cwd(
         gh_pr_merge.gh_pr_merge_flow,
+        repo_path=repo_path,
         ctx=ctx,
         point=point,
         override_json_str=override_json_str,
@@ -138,6 +194,21 @@ async def gh_pr_merge_flow(
 
 def main():
     """Main entry point for the MCP server."""
+    # Ensure dependencies from src are discoverable if this script is run directly
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    src_dir = os.path.dirname(os.path.dirname(current_dir))
+    if src_dir not in sys.path:
+        sys.path.insert(0, src_dir)
+
+    parser = argparse.ArgumentParser(description="Agent Git Tools")
+    parser.add_argument("--repository", "-r", help="Path to the repository")
+    args, _ = parser.parse_known_args()
+
+    if args.repository:
+        path = args.repository
+        if "${workspaceFolder}" not in path:
+            os.environ["AGENT_TOOLS_REPO_PATH"] = os.path.abspath(path)
+
     mcp.run(transport="stdio")
 
 

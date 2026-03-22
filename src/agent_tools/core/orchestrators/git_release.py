@@ -68,6 +68,7 @@ def _handle_sense() -> Result:
     if guard:
         return guard
 
+    branch_info = get_branch_context()  # Ensure branch_info is available for is_protected check
     latest_tag = get_latest_tag()
     if latest_tag:
         commits = get_commits_ahead(latest_tag)
@@ -76,6 +77,13 @@ def _handle_sense() -> Result:
         first_commit = res.stdout.strip()
         commits = get_commits_ahead(f"{first_commit}^!") if first_commit else []
 
+    # Detect if current default branch is protected
+    from agent_tools.infrastructure.config.manager import get_protected_branches, get_allow_direct_actions_to_protected
+
+    is_protected = (
+        branch_info.current_branch in get_protected_branches() and not get_allow_direct_actions_to_protected()
+    )
+
     return Result(
         status="handoff",
         message="Ready to plan release.",
@@ -83,21 +91,22 @@ def _handle_sense() -> Result:
         next_step="PLAN_VERSION_BUMP",
         resume_point="release",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
-            "【ACTION】\n"
-            "1. Analyze 'commits' in details to determine the next SemVer increment (Major/Minor/Patch).\n"
-            "2. Read versioning files (e.g., pyproject.toml, package.json) to find the current version.\n"
-            "3. Draft a Release Note (Changelog) based on commit messages.\n"
-            "4. PRESENT the draft and the new version to the user for explicit approval.\n"
-            "5. After approval, update files, commit using 'git_commit_flow', and THEN call 'git_release_flow' with point='release' and your 'tag_json_str', formatted according to 'details.json_format'."
+            "【STRICT PROTOCOL / 严格协议】\n"
+            "1. Analyze 'commits' in details to determine the next SemVer increment.\n"
+            "2. Read versioning files to find current version. If already updated via recent merges, proceed to step 4.\n"
+            "3. If version bump is needed:\n"
+            f"   - **IF PROTECTED (is_protected={is_protected})**: Use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
+            f"   - **ELSE**: Update and commit directly using 'git_commit_flow'.\n"
+            "4. Finalize with 'git_release_flow' (point='release', tag_json_str='{\"tag_name\": \"vX.Y.Z\"}')."
         ),
         constraints=[
             "Tag MUST match the regex in details.",
-            "Do NOT proceed with the 'release' point without user approval of the version bump.",
+            "Do NOT proceed if version files and git history are out of sync.",
         ],
         details={
             "latest_tag": latest_tag,
             "commits": [asdict(c) for c in commits],
+            "is_protected": is_protected,
             "json_format": {
                 "tag_name": "v1.2.3",
                 "tag_message": "Release description...",
@@ -140,9 +149,7 @@ def _handle_release(tag_json_str: str) -> Result:
 
     try:
         # Create Annotated Tag
-        run_git(["tag", "-a", tag_name, "-m", tag_message]).raise_on_error(
-            "Tag creation failed"
-        )
+        run_git(["tag", "-a", tag_name, "-m", tag_message]).raise_on_error("Tag creation failed")
         repo_info = get_repo_context()
         remote = repo_info.primary_remote
         if not remote:
@@ -179,9 +186,7 @@ def _handle_release(tag_json_str: str) -> Result:
         )
 
 
-def git_release_flow(
-    point: Literal["init", "sense", "release"] = "init", tag_json_str: str = ""
-) -> Result:
+def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_json_str: str = "") -> Result:
     """Industrial-grade git release flow orchestrator."""
     handlers = {
         "init": _handle_init,
@@ -192,12 +197,8 @@ def git_release_flow(
     try:
         handler = handlers.get(point)
         if not handler:
-            return Result(
-                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
-            )
+            return Result(status="error", message=f"Invalid point: {point}", workflow=WORKFLOW)
         return handler()
     except Exception as e:
         logger.exception("Release workflow crash")
-        return Result(
-            status="error", message=f"Release failed: {str(e)}", workflow=WORKFLOW
-        )
+        return Result(status="error", message=f"Release failed: {str(e)}", workflow=WORKFLOW)

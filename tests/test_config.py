@@ -45,9 +45,7 @@ def test_load_rules_minimal_override(tmp_path, monkeypatch):
     rules_file = tmp_path / "rules.yaml"
     rules_file.write_text(yaml.dump(custom_rules))
 
-    monkeypatch.setattr(
-        "agent_tools.infrastructure.config.manager.get_rules_path", lambda: rules_file
-    )
+    monkeypatch.setattr("agent_tools.infrastructure.config.manager.get_rules_path", lambda: rules_file)
 
     load_rules.cache_clear()
     load_schema.cache_clear()
@@ -136,9 +134,7 @@ def test_production_config_physical_alignment(caplog):
         validate_rules(rules)
 
     # 物理资产绝对不应该打破 Schema 的束缚
-    assert "validation failed" not in caplog.text, (
-        f"Production config is invalid or incomplete: {caplog.text}"
-    )
+    assert "validation failed" not in caplog.text, f"Production config is invalid or incomplete: {caplog.text}"
 
 
 def test_all_getters_return_typed_values():

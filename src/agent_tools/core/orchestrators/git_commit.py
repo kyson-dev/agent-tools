@@ -60,9 +60,7 @@ def _handle_sense() -> Result:
     # Check for sensitive files (e.g., .env, secrets)
     sensitive_patterns = [".env", "key", "secret", "token", "password"]
     risk_files = [
-        f.filepath
-        for f in diff_info.changed_files
-        if any(p in f.filepath.lower() for p in sensitive_patterns)
+        f.filepath for f in diff_info.changed_files if any(p in f.filepath.lower() for p in sensitive_patterns)
     ]
 
     if not diff_info.changed_files:
@@ -157,9 +155,7 @@ def _handle_commit(plan_json_str: str) -> Result:
         )
 
 
-def git_commit_flow(
-    point: Literal["sense", "commit"] = "sense", plan_json_str: str = ""
-) -> Result:
+def git_commit_flow(point: Literal["sense", "commit"] = "sense", plan_json_str: str = "") -> Result:
     """Industrial-grade git commit flow orchestrator."""
     handlers = {
         "sense": _handle_sense,
@@ -169,9 +165,7 @@ def git_commit_flow(
     try:
         handler = handlers.get(point)
         if not handler:
-            return Result(
-                status="error", message=f"Invalid point: {point}", workflow=WORKFLOW
-            )
+            return Result(status="error", message=f"Invalid point: {point}", workflow=WORKFLOW)
         return handler()
     except Exception as e:
         logger.exception("Commit workflow crash")
