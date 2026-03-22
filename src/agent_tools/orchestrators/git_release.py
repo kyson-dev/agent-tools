@@ -3,11 +3,11 @@ import re
 from dataclasses import asdict
 from typing import Literal
 
-from ...config import (
+from ..config import (
     get_full_commit_rules,
     get_release_tag_regex,
 )
-from ...git import (
+from ..git import (
     GitCommandError,
     get_branch_context,
     get_commits_ahead,
@@ -15,7 +15,7 @@ from ...git import (
     get_repo_context,
     run_git,
 )
-from ...protocol import Result
+from ..protocol import Result
 
 logger = logging.getLogger(__name__)
 WORKFLOW = "git_release"
@@ -94,7 +94,7 @@ def _sense() -> Result:
                 "3. **SANITY CHECK**: Cross-reference `details.latest_tag` with any found file-based version. If versions are inconsistent across multiple files, or if a manual out-of-sync bump is detected, you MUST propose a unification strategy following SemVer policy. "
                 "4. **EXPLICIT HANDOFF (STOP)**: Present the full release draft (`tag_name`, Release Notes, and found version files) to the user. AWAIT explicit authorization before proceeding. "
                 "5. **MUTATE & COMMIT**: Based on authorization, use `replace_file_content` to unify/apply version increments, then use `git_commit_flow` to commit. Skip if state is already compliant or it's a Tag-Only release. "
-                '6. **FINALIZE**: Call `git_release_flow(point="release", tag_json_str=\'{"tag_name": "...", "tag_message": "..."}\')` to tag and push locally. Handle any tag-exists or push-rejected errors by suggesting resolutions.'
+                '6. **FINALIZE**: Call `git_release_flow(point="release", tag_json_str=\'{"tag_name": "..", "tag_message": ".."}\')` to tag and push locally. Handle any tag-exists or push-rejected errors by suggesting resolutions.'
             ),
         )
     except Exception as e:

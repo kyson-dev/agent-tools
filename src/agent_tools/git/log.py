@@ -1,5 +1,5 @@
 from .client import run_git
-from .types import CommitRecord
+from .git_types import CommitRecord
 
 
 def get_commits_ahead(base: str) -> list[CommitRecord]:

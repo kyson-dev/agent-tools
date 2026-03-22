@@ -2,10 +2,7 @@ from .branch import get_branch_context
 from .client import run_git
 from .commit import execute_commit_plan
 from .diff import get_diff_summary
-from .log import get_commits_ahead
-from .repo import get_latest_tag, get_repo_context
-from .transaction import GitTransaction
-from .types import (
+from .git_types import (
     BranchContext,
     CommitRecord,
     DiffSummary,
@@ -14,6 +11,9 @@ from .types import (
     GitCommitResult,
     RepoContext,
 )
+from .log import get_commits_ahead
+from .repo import get_latest_tag, get_repo_context
+from .transaction import GitTransaction
 
 __all__ = [
     "run_git",

@@ -1,6 +1,6 @@
 import re
 
-from ...config import (
+from ..config import (
     get_commit_allowed_types,
     get_commit_body_wrap_length,
     get_commit_max_groups,
@@ -9,8 +9,8 @@ from ...config import (
     load_rules,
 )
 from .client import run_git
+from .git_types import GitCommitResult
 from .transaction import GitTransaction
-from .types import GitCommitResult
 
 
 def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:

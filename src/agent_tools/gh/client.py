@@ -1,7 +1,7 @@
 import subprocess
 
-from ...git.types import GitResult
 from ..context import REPO_CWD
+from ..git.git_types import GitResult
 
 
 def run_gh(

@@ -2,15 +2,15 @@ import json
 import logging
 from typing import Literal
 
-from ...config import get_full_commit_rules
-from ...gh import run_gh
-from ...git import (
+from ..config import get_full_commit_rules
+from ..gh import run_gh
+from ..git import (
     GitCommandError,
     get_branch_context,
     get_repo_context,
     run_git,
 )
-from ...protocol import Result
+from ..protocol import Result
 
 WORKFLOW = "gh_pr_merge"
 logger = logging.getLogger(WORKFLOW)
@@ -176,7 +176,7 @@ def _sense() -> Result:
             instruction=(
                 "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
                 "2. Analyze PR metadata in `details`. "
-                '3. Call `gh_pr_merge_flow(point="merge", override_json_str=\'{"title": "...", "body": "..."}\')` to finalize.'
+                '3. Call `gh_pr_merge_flow(point="merge", override_json_str=\'{"title": "..", "body": ".."}\')` to finalize.'
             ),
             details={"pr": pr_data, "commit_rules": rules},
         )

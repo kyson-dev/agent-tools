@@ -2,7 +2,7 @@ import os
 import subprocess
 
 from ..context import REPO_CWD
-from .types import GitResult
+from .git_types import GitResult
 
 
 def run_git(
@@ -26,7 +26,12 @@ def run_git(
             cmd, capture_output=True, text=True, check=check, cwd=use_cwd
         )
         return GitResult(
-            returncode=res.returncode, stdout=res.stdout, stderr=res.stderr, command=cmd
+            returncode=res.returncode,
+            stdout=res.stdout,
+            stderr=res.stderr,
+            command=cmd,
+            command_cwd=use_cwd,
+            context_repo_cwd=REPO_CWD.get(),
         )
     except subprocess.CalledProcessError as e:
         return GitResult(

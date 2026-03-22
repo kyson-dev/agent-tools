@@ -90,7 +90,7 @@ def _sense() -> Result:
             instruction=(
                 "1. All message MUST following **Conventional Commits** and `details.commit_rules`. "
                 "2. Analyze `changed_files` and `commit_rules` (regex, types, limits) in `details`. "
-                '3. Execute `git_commit_flow(point="commit", plan_json_str=\'{"commits": [{"files": ["..."], "message": "..."}]}\')` with your grouping strategy.'
+                '3. Execute `git_commit_flow(point="commit", plan_json_str=\'{"commits": [{"files": [".."], "message": ".."}]}\')` with your grouping strategy.'
             ),
             details={
                 "changed_files": [asdict(f) for f in changed_files],

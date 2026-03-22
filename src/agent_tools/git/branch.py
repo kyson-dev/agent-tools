@@ -1,5 +1,5 @@
 from .client import run_git
-from .types import BranchContext
+from .git_types import BranchContext
 
 
 def get_branch_context(refresh: bool = False) -> BranchContext:

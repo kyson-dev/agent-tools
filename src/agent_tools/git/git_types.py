@@ -23,6 +23,8 @@ class GitResult:
     stdout: str
     stderr: str
     command: list[str]
+    command_cwd: str | None = None
+    context_repo_cwd: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -32,7 +34,17 @@ class GitResult:
     def raise_on_error(self, context: str = ""):
         """Raise GitCommandError if command failed."""
         if not self.ok:
-            raise GitCommandError(self.command, self.stderr, context)
+            # Industrial Debug: include CWD in error message
+            debug_info = ""
+            if self.command_cwd:
+                debug_info += f"\n[INTERNAL-DEBUG] Effective CWD: {self.command_cwd}"
+            if self.context_repo_cwd:
+                debug_info += f"\n[INTERNAL-DEBUG] REPO_CWD: {self.context_repo_cwd}"
+
+            # The GitCommandError constructor expects (command, stderr, context)
+            # We are prepending the debug_info to the context.
+            full_context = f"{context}{debug_info}" if context else debug_info
+            raise GitCommandError(self.command, self.stderr, full_context)
 
 
 @dataclass

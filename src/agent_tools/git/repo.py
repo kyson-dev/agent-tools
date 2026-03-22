@@ -1,7 +1,7 @@
 import re
 
 from .client import run_git
-from .types import RepoContext
+from .git_types import RepoContext
 
 
 def parse_remote_url(url: str):
