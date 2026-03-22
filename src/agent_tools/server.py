@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 from typing import Literal, cast
@@ -185,10 +186,22 @@ Follow this industrial-grade automated release protocol:
 
 
 def main():
-    # Ensure dependencies from src are discoverable if this script is run directly
-    import sys
+    """Main entry point for the MCP server."""
+    parser = argparse.ArgumentParser(
+        description="Industrial-grade Agent Git Workflow Tools"
+    )
+    parser.add_argument(
+        "--repository",
+        "-r",
+        help="Path to the git repository (overrides AGENT_TOOLS_REPO_PATH)",
+    )
+    # Use parse_known_args to avoid conflicts with FastMCP's own arguments if any
+    args, _ = parser.parse_known_args()
 
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    if args.repository:
+        # Resolve to absolute path immediately
+        os.environ["AGENT_TOOLS_REPO_PATH"] = os.path.abspath(args.repository)
+
     mcp.run(transport="stdio")
 
 
