@@ -15,6 +15,9 @@ class Result:
     )
     resume_point: str = ""  # Machine-readable string to pass back to the orchestrator (e.g., '--point current_rebase')
     instruction: str = ""  # Specific, actionable instructions for the LLM agent
+    strict_protocol: bool = (
+        True  # If True, the LLM must strictly follow the workflow and never bypass it
+    )
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
