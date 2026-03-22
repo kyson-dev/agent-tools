@@ -8,6 +8,7 @@ from agent_tools.infrastructure.clients.git import (
     get_branch_context,
     get_commits_ahead,
     get_repo_context,
+    run_git,
 )
 
 from agent_tools.infrastructure.config.manager import (
@@ -21,65 +22,87 @@ WORKFLOW = "gh_pr_create"
 
 def _check_safety_guards() -> Result | None:
     """Pre-conditions for PR creation."""
+    # 1. 必须有github上下文
+    repo_info = get_repo_context(refresh=True)
+    if not repo_info.owner or not repo_info.repo:
+        return Result(status="error", message="GitHub context unknown.", workflow=WORKFLOW)
+
+    # 2. 没有remote origin
+    if not repo_info.primary_remote:
+        return Result(status="error", message="No remote origin.", workflow=WORKFLOW)
+
+    # 3. 不能是游离状态
     branch_info = get_branch_context(refresh=True)
     if branch_info.is_detached:
         return Result(status="error", message="HEAD is detached.", workflow=WORKFLOW)
 
-    repo_info = get_repo_context(refresh=True)
-    if not repo_info.owner or not repo_info.repo:
-        return Result(
-            status="error",
-            message="Cannot determine GitHub repository context.",
-            workflow=WORKFLOW,
-        )
+    # 4. 当前分支必须存在
+    if not branch_info.current_branch:
+        return Result(status="error", message="Unknown current branch.", workflow=WORKFLOW)
 
+    # 5. 默认分支必须存在
     if not repo_info.default_branch:
-        return Result(
-            status="error",
-            message="Default branch unknown. Push your branch first.",
-            workflow=WORKFLOW,
-        )
+        return Result(status="error", message="Default branch is required.", workflow=WORKFLOW)
 
-    commits = get_commits_ahead(repo_info.default_branch)
-    if not commits:
-        return Result(
-            status="error",
-            message=f"No commits ahead of '{repo_info.default_branch}'.",
-            workflow=WORKFLOW,
-        )
+    # 6. 当前分支不能是默认分支
+    if branch_info.current_branch == repo_info.default_branch:
+        return Result(status="error", message="Current branch is default branch.", workflow=WORKFLOW)
 
     return None
 
 
+def _current_branch_behind_remote_default_branch() -> bool:
+    """确认当前分支是否落后于远程默认分支 (比如 origin/main)。"""
+    repo_info = get_repo_context()
+
+    remote_ref = f"{repo_info.primary_remote}/{repo_info.default_branch}"
+    res = run_git(["merge-base", "--is-ancestor", remote_ref, "HEAD"])
+    return not res.ok
+
+
 def _handle_init() -> Result:
     """Stage 0: Init and Sync."""
-    return Result(
-        status="handoff",
-        message="PR creation initiated.",
-        workflow=WORKFLOW,
-        next_step="SYNC_BEFORE_PR",
-        resume_point="sense",
-        instruction=(
-            "【ACTION】\n"
-            "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
-            "2. After sync, call 'gh_pr_create_flow' with point='sense'."
-        ),
-    )
 
-
-def _handle_sense() -> Result:
-    """Stage 1: Context extraction and PR synthesis."""
     guard = _check_safety_guards()
     if guard:
         return guard
 
-    repo_info = get_repo_context()
     branch_info = get_branch_context()
+
+    # 严苛校验: 工作区不干净、有本地超前提交、或落后于远程默认分支
+    if branch_info.is_dirty or branch_info.ahead > 0 or _current_branch_behind_remote_default_branch():
+        return Result(
+            status="handoff",
+            message="PR creation initiated.",
+            workflow=WORKFLOW,
+            next_step="SYNC_BEFORE_PR",
+            resume_point="sense",
+            instruction=(
+                "【ACTION】\n"
+                "1. Run 'git_sync_flow' to ensure your branch is updated and pushed.\n"
+                "2. After sync, call 'gh_pr_create_flow' with point='sense'."
+            ),
+        )
+    return _handle_sense()
+
+
+def _handle_sense() -> Result:
+    """Stage 1: Context gathering and planning."""
+
+    repo_info = get_repo_context(refresh=True)
+    branch_info = get_branch_context(refresh=True)
     base = repo_info.default_branch
     if not base:
-        return Result(status="error", message="Default branch is required.", workflow=WORKFLOW)
+        return Result(status="error", message="Default branch unknown.", workflow=WORKFLOW)
 
     commits = get_commits_ahead(base)
+
+    if not commits:
+        return Result(
+            status="error",
+            message=f"No commits ahead of '{base}'.",
+            workflow=WORKFLOW,
+        )
 
     return Result(
         status="handoff",
@@ -96,8 +119,7 @@ def _handle_sense() -> Result:
             "4. Call 'gh_pr_create_flow' with point='create' and your 'draft_json_str', formatted according to 'details.json_format'."
         ),
         constraints=[
-            "Title MUST follow the 'type(scope): description' format.",
-            "Body MUST include 'Summary' and 'Test Plan' sections.",
+            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
         ],
         details={
             "owner": repo_info.owner,
@@ -117,9 +139,9 @@ def _handle_sense() -> Result:
 def _handle_create(draft_json_str: str) -> Result:
     """Stage 2: Execution via GitHub CLI."""
     try:
-        data = json.loads(draft_json_str)
-        title = data.get("title")
-        body = data.get("body")
+        draft_data = json.loads(draft_json_str)
+        title = draft_data.get("title")
+        body = draft_data.get("body")
     except json.JSONDecodeError:
         return Result(status="error", message="Invalid JSON in draft_json_str.", workflow=WORKFLOW)
 
@@ -132,9 +154,6 @@ def _handle_create(draft_json_str: str) -> Result:
 
     repo_info = get_repo_context()
     branch_info = get_branch_context()
-
-    if not repo_info.default_branch or not branch_info.current_branch:
-        return Result(status="error", message="Missing branch information.", workflow=WORKFLOW)
 
     args = [
         "pr",
