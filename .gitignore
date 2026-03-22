@@ -51,3 +51,4 @@ wheels/
 # Note: .agent/configs/rules.yaml is currently used for project defaults.
 # If you want to support local-only rules, you could add:
 # .agent/configs/local_rules.yaml
+.worktrees/
