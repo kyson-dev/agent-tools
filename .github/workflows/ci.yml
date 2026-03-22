@@ -22,5 +22,6 @@ jobs:
         
       - name: Auto-fix and Check
         run: |
+          uv sync --dev
           make fix
           make check
