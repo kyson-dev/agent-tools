@@ -27,13 +27,13 @@
         "commit": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["allowed_types", "message_regex", "subject_max_length", "body_wrap_length", "grouping_signals", "max_groups"],
+          "required": ["allowed_types", "subject_max_length", "body_wrap_length", "grouping_signals", "max_groups"],
           "properties": {
             "allowed_types": {
               "type": "array",
               "items": { "type": "string" }
             },
-            "message_regex": { 
+            "subject_regex": { 
               "type": "string"
             },
             "subject_max_length": { "type": "integer" },

@@ -4,8 +4,8 @@ from agent_tools.infrastructure.config.manager import (
     get_commit_allowed_types,
     get_commit_body_wrap_length,
     get_commit_max_groups,
-    get_commit_message_regex,
     get_commit_subject_max_length,
+    get_commit_subject_regex,
     load_rules,
 )
 
@@ -28,7 +28,7 @@ def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:
         )
 
     allowed_types = get_commit_allowed_types()
-    regex_pattern = get_commit_message_regex()
+    regex_pattern = get_commit_subject_regex()
     subject_max = get_commit_subject_max_length()
     body_wrap = get_commit_body_wrap_length()
 
@@ -58,11 +58,13 @@ def validate_plan(plan: dict, rules: dict) -> tuple[bool, str]:
 
         # --- Allowed types check (subject only) ---
         if allowed_types:
-            msg_type = subject.split(":")[0].split("(")[0]
+            # Handle cases like "feat(scope)!: ..." or "feat!: ..."
+            prefix = subject.split(":")[0]
+            msg_type = prefix.split("(")[0].rstrip("!")
             if msg_type not in allowed_types:
                 return (
                     False,
-                    f"Commit message at index {idx} uses disallowed type '{msg_type}'.",
+                    f"Commit message at index {idx} uses disallowed type '{msg_type}'. (Allowed: {', '.join(allowed_types)})",
                 )
 
         # --- Body wrap length check ---

@@ -13,8 +13,8 @@ from agent_tools.infrastructure.clients.git import (
     run_git,
 )
 from agent_tools.infrastructure.config.manager import (
-    get_full_commit_rules,
     get_release_tag_regex,
+    get_commit_body_wrap_length,
     get_protected_branches,
     get_allow_direct_actions_to_protected,
 )
@@ -125,13 +125,14 @@ def _handle_sense() -> Result:
             "3. If version bump is needed (【PAUSE】You MUST propose the new version and its rationale, then WAIT for USER approval before proceeding):\n"
             f"   - **IF PROTECTED (is_protected={is_protected})**: Use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
             f"   - **ELSE**: Update and commit directly using 'git_commit_flow'.\n"
-            "4. Finalize with 'git_release_flow' (point='release'), providing a structured message with descriptive title and categorized changes (Features, Bug Fixes, Refactors)."
+            "4. Finalize with 'git_release_flow' (point='release'), with its 'tag_json_str' following the 'details.json_format'.\n"
+            "   - 'name': The chosen version string. 【STRICT】MUST match 'details.tag_regex'.\n"
+            "   - 'message': Categorized release notes. MUST follow the layout in 'details.json_format.message'.\n"
+            "       * The field MUST include a header and categorized bullet points (Features, Bug Fixes, etc.).\n"
+            "       * The field single line max `details.body_wrap_length` chars.\n"
+            "【CONSTRAINTS】\n"
+            "- Do NOT proceed if version files and git history are out of sync."
         ),
-        constraints=[
-            "Tag MUST match the regex in details.",
-            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
-            "Do NOT proceed if version files and git history are out of sync.",
-        ],
         details={
             "latest_tag": latest_tag,
             "commits": [asdict(c) for c in commits],
@@ -139,14 +140,14 @@ def _handle_sense() -> Result:
             "json_format": {
                 "name": "v1.2.3",
                 "message": (
-                    "v1.2.3: Descriptive Title Summary\n\n"
+                    "Descriptive Title Summary\n\n"
                     "### 🚀 Features\n- List key new features here.\n\n"
                     "### 🐛 Bug Fixes\n- List important bug fixes here.\n\n"
                     "### ⚙️ Refactors\n- List major internal improvements here."
                 ),
             },
             "tag_regex": get_release_tag_regex(),
-            "commit_rules": get_full_commit_rules(),
+            "body_wrap_length": get_commit_body_wrap_length(),
             "branch_info": asdict(get_branch_context()),
         },
     )

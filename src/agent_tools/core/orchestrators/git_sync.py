@@ -60,14 +60,14 @@ def _pause_for_conflict(current_point: str) -> Result:
         next_step="RESOLVE_CONFLICTS",
         resume_point=current_point,
         instruction=(
+            "【ACTION】\n"
             f"1. Resolve conflicts in: {', '.join(files)}\n"
             "2. Run 'git add <file>' for all resolved files.\n"
-            f"3. Resume by calling 'git_sync_flow' with point='{current_point}'."
+            f"3. Resume by calling 'git_sync_flow' with point='{current_point}'.\n"
+            "【CONSTRAINTS】\n"
+            "- Do NOT run 'git commit' during rebase."
+            "- Do NOT run 'git rebase --continue' manually; the tool handles it."
         ),
-        constraints=[
-            "Do NOT run 'git commit' during rebase.",
-            "Do NOT run 'git rebase --continue' manually; the tool handles it.",
-        ],
         details={"conflicted_files": files},
     )
 
