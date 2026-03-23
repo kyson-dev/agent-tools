@@ -173,6 +173,7 @@ def _handle_sense() -> Result:
             "2. Synthesize a professional squash commit message for `override` following the 'details.json_format' layout.\n"
             "   - 'title': A professional squash commit subject.【STRICT】MUST satisfy 'details.subject_regex'.\n"
             "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
+            "   - 【NOTICE】 You cannot directly use the PR's commit information; you must reorganize the language based on the PR information to form a new commit message.\n"
             "3. Call 'gh_pr_merge_flow' with point='merge' and your 'override' object.\n"
         ),
         details={
