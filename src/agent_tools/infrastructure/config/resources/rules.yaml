@@ -46,6 +46,14 @@ git:
     # If false, the agent must refuse direct commits/pushes to the branches above
     allow_direct_actions_to_protected: false
 
+    # Patterns to identify sensitive files (e.g., secrets, tokens)
+    sensitive_patterns:
+      - ".env"
+      - "key"
+      - "secret"
+      - "token"
+      - "password"
+
   # Performance and Token Limits for Diff Analysis
   diff:
     max_diff_lines_per_file: 500

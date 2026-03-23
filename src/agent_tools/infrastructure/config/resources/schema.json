@@ -13,7 +13,7 @@
         "safety": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["protected_branches", "allow_direct_actions_to_protected"],
+          "required": ["protected_branches", "allow_direct_actions_to_protected", "sensitive_patterns"],
           "properties": {
             "protected_branches": {
               "type": "array",
@@ -21,6 +21,10 @@
             },
             "allow_direct_actions_to_protected": { 
               "type": "boolean"
+            },
+            "sensitive_patterns": {
+              "type": "array",
+              "items": { "type": "string" }
             }
           }
         },

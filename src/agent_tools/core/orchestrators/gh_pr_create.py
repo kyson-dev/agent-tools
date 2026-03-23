@@ -1,4 +1,3 @@
-import json
 import logging
 from dataclasses import asdict
 from typing import Literal
@@ -112,14 +111,14 @@ def _handle_sense() -> Result:
         next_step="SYNTHESIZE_PR_DESCRIPTION",
         resume_point="create",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Skipping steps or executing unauthorized commands is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review 'commits' in details.\n"
             "2. Synthesize a professional PR title for `draft_json_str` following the 'details.json_format' layout.\n"
             "   - 'title': A professional pr commit subject. 【STRICT】MUST satisfy 'details.subject_regex'.\n"
             "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
             "3. Mention any relevant issue numbers if known.\n"
-            "4. Call 'gh_pr_create_flow' with point='create' and your 'draft_json_str', formatted according to 'details.json_format'.\n"
+            "4. Call 'gh_pr_create_flow' with point='create' and your 'draft' object.\n"
         ),
         details={
             "owner": repo_info.owner,
@@ -137,14 +136,10 @@ def _handle_sense() -> Result:
     )
 
 
-def _handle_create(draft_json_str: str) -> Result:
+def _handle_create(draft: dict) -> Result:
     """Stage 2: Execution via GitHub CLI."""
-    try:
-        draft_data = json.loads(draft_json_str)
-        title = draft_data.get("title")
-        body = draft_data.get("body")
-    except json.JSONDecodeError:
-        return Result(status="error", message="Invalid JSON in draft_json_str.", workflow=WORKFLOW)
+    title = draft.get("title")
+    body = draft.get("body")
 
     if not title or not body:
         return Result(
@@ -197,12 +192,12 @@ def _handle_create(draft_json_str: str) -> Result:
     )
 
 
-def gh_pr_create_flow(point: Literal["init", "sense", "create"] = "init", draft_json_str: str = "") -> Result:
+def gh_pr_create_flow(point: Literal["init", "sense", "create"] = "init", draft: dict | None = None) -> Result:
     """Industrial-grade GitHub PR creation flow orchestrator."""
     handlers = {
         "init": _handle_init,
         "sense": _handle_sense,
-        "create": lambda: _handle_create(draft_json_str),
+        "create": lambda: _handle_create(draft or {}),
     }
 
     try:

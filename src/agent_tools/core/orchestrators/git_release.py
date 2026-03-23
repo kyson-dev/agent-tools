@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from dataclasses import asdict
@@ -92,6 +91,7 @@ def _is_protected_branch() -> bool:
 def _handle_sense() -> Result:
     """Stage 1: Context gathering and planning."""
 
+    branch_info = get_branch_context()
     latest_tag = get_latest_tag()
     if latest_tag:
         commits = get_commits_ahead(latest_tag)
@@ -119,13 +119,13 @@ def _handle_sense() -> Result:
         next_step="PLAN_VERSION_BUMP",
         resume_point="release",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Direct commits or bypassing analysis is strictly prohibited.\n"
             "1. Analyze 'commits' in details to determine the next SemVer increment.\n"
             "2. Read versioning files to find current version. If already updated via recent merges, proceed to step 4.\n"
             "3. If version bump is needed (【PAUSE】You MUST propose the new version and its rationale, then WAIT for USER approval before proceeding):\n"
-            f"   - **IF PROTECTED (is_protected={is_protected})**: Use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
-            f"   - **ELSE**: Update and commit directly using 'git_commit_flow'.\n"
-            "4. Finalize with 'git_release_flow' (point='release'), with its 'tag_json_str' following the 'details.json_format'.\n"
+            f"   - **IF PROTECTED (is_protected={is_protected})**: Create a task branch (e.g. release/vX.Y.Z), update version, commit via 'git_commit_flow', push, and then use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
+            f"   - **ELSE**: Update and commit directly to {branch_info.current_branch} using 'git_commit_flow'.\n"
+            "4. Finalize with 'git_release_flow' (point='release'), with its 'tag_data' following the 'details.json_format'.\n"
             "   - 'name': The chosen version string. 【STRICT】MUST match 'details.tag_regex'.\n"
             "   - 'message': Categorized release notes. MUST follow the layout in 'details.json_format.message'.\n"
             "       * The field MUST include a header and categorized bullet points (Features, Bug Fixes, etc.).\n"
@@ -148,24 +148,14 @@ def _handle_sense() -> Result:
             },
             "tag_regex": get_release_tag_regex(),
             "body_wrap_length": get_commit_body_wrap_length(),
-            "branch_info": asdict(get_branch_context()),
         },
     )
 
 
-def _handle_release(tag_json_str: str) -> Result:
+def _handle_release(tag_data: dict) -> Result:
     """Stage 2: Physical tagging and atomic push."""
-    try:
-        data = json.loads(tag_json_str)
-        name = data.get("name")
-        message = data.get("message")
-    except json.JSONDecodeError:
-        return Result(
-            status="error",
-            message="Invalid JSON in tag_json_str.",
-            workflow=WORKFLOW,
-            instruction="Fix the JSON format and retry.",
-        )
+    name = tag_data.get("name")
+    message = tag_data.get("message")
 
     if not name or not message:
         return Result(status="error", message="Missing 'name' or 'message'.", workflow=WORKFLOW)
@@ -205,12 +195,12 @@ def _handle_release(tag_json_str: str) -> Result:
     )
 
 
-def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_json_str: str = "") -> Result:
+def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_data: dict | None = None) -> Result:
     """Industrial-grade git release flow orchestrator."""
     handlers = {
         "init": _handle_init,
         "sense": _handle_sense,
-        "release": lambda: _handle_release(tag_json_str),
+        "release": lambda: _handle_release(tag_data or {}),
     }
 
     try:

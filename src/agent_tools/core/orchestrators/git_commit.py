@@ -1,6 +1,4 @@
-import json
 import logging
-from dataclasses import asdict
 from typing import Literal
 
 from agent_tools.core.models.workflow import Result
@@ -16,6 +14,7 @@ from agent_tools.infrastructure.config.manager import (
     get_protected_branches,
     get_commit_grouping_signals,
     get_commit_max_groups,
+    get_sensitive_patterns,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +58,7 @@ def _handle_sense() -> Result:
     diff_info = get_diff_summary()
 
     # Check for sensitive files (e.g., .env, secrets)
-    sensitive_patterns = [".env", "key", "secret", "token", "password"]
+    sensitive_patterns = get_sensitive_patterns()
     risk_files = [
         f.filepath for f in diff_info.changed_files if any(p in f.filepath.lower() for p in sensitive_patterns)
     ]
@@ -81,7 +80,7 @@ def _handle_sense() -> Result:
         next_step="BUILD_COMMIT_PLAN",
         resume_point="commit",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止直接提交，禁止绕过分析步骤。\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Direct commits or bypassing analysis is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review 'staged' vs 'unstaged' files in details.\n"
             "2. Group files into logical commits (max: 'details.max_groups') using these signals: 'details.grouping_signals'.\n"
@@ -91,7 +90,7 @@ def _handle_sense() -> Result:
             "     * Subject (1st line): 【STRICT】MUST satisfy 'details.subject_regex'.\n"
             "     * Detail body (Add a blank line after the subject): "
             "        * The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
-            "4. Call 'git_commit_flow' with point='commit' and your 'plan_json_str'.\n"
+            "4. Call 'git_commit_flow' with point='commit' and your 'plan' object.\n"
             "【CONSTRAINTS】\n"
             "- Do NOT include files from 'risk_files' unless specifically authorized.\n"
         ),
@@ -108,27 +107,16 @@ def _handle_sense() -> Result:
                     }
                 ]
             },
-            "subject_regex": get_commit_subject_regex,
+            "subject_regex": get_commit_subject_regex(),
             "body_wrap_length": get_commit_body_wrap_length(),
             "grouping_signals": get_commit_grouping_signals(),
             "max_groups": get_commit_max_groups(),
-            "branch_info": asdict(get_branch_context()),
         },
     )
 
 
-def _handle_commit(plan_json_str: str) -> Result:
+def _handle_commit(plan: dict) -> Result:
     """Stage 2: Execute the provided commit plan with validation."""
-    try:
-        plan = json.loads(plan_json_str)
-    except json.JSONDecodeError:
-        return Result(
-            status="handoff",
-            message="Invalid JSON format in plan.",
-            workflow=WORKFLOW,
-            resume_point="commit",
-            instruction="Fix the JSON formatting error and resubmit the plan.",
-        )
 
     # execute_commit_plan handles 'git add' for files specified in the plan
     commit_res = execute_commit_plan(plan)
@@ -148,11 +136,11 @@ def _handle_commit(plan_json_str: str) -> Result:
     )
 
 
-def git_commit_flow(point: Literal["sense", "commit"] = "sense", plan_json_str: str = "") -> Result:
+def git_commit_flow(point: Literal["sense", "commit"] = "sense", plan: dict | None = None) -> Result:
     """Industrial-grade git commit flow orchestrator."""
     handlers = {
         "sense": _handle_sense,
-        "commit": lambda: _handle_commit(plan_json_str),
+        "commit": lambda: _handle_commit(plan or {}),
     }
 
     try:
