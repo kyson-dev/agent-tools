@@ -1,5 +1,6 @@
 import functools
 import json
+import re
 import logging
 import os
 from pathlib import Path
@@ -120,9 +121,20 @@ def get_commit_allowed_types() -> list[str]:
     return cast(list[str], rules["git"]["commit"]["allowed_types"])
 
 
-def get_commit_message_regex() -> str:
-    rules = load_rules()
-    return cast(str, rules["git"]["commit"]["message_regex"])
+def get_commit_subject_regex() -> str:
+    """Automatically generate regex from 'allowed_types' and 'subject_max_length' (DRY)"""
+    allowed_types = get_commit_allowed_types()
+    max_len = get_commit_subject_max_length()
+
+    # Pattern components:
+    # 1. Start with one of the allowed types
+    # 2. Optional scope in parentheses (e.g., '(core)')
+    # 3. Optional breaking change marker '!'
+    # 4. Mandatory colon and space ': '
+    # 5. Total length limit using positive lookahead
+    # This ensures the entire subject (prefix + scope + description) is within max_len
+    types_pattern = "|".join(re.escape(t) for t in allowed_types)
+    return rf"^(?=.{{1,{max_len}}}$)({types_pattern})(\([a-z0-9._\-]+\))?(!)?:\s.+$"
 
 
 def get_commit_subject_max_length() -> int:
@@ -163,19 +175,3 @@ def get_allow_direct_actions_to_protected() -> bool:
 def get_release_tag_regex() -> str:
     rules = load_rules()
     return cast(str, rules["git"]["release"]["tag_regex"])
-
-
-def get_full_commit_rules() -> dict[str, Any]:
-    return {
-        "allowed_types": get_commit_allowed_types(),
-        "message_regex": get_commit_message_regex(),
-        "subject_max_length": get_commit_subject_max_length(),
-        "body_wrap_length": get_commit_body_wrap_length(),
-    }
-
-
-def get_separation_rules() -> dict[str, Any]:
-    return {
-        "grouping_signals": get_commit_grouping_signals(),
-        "max_groups": get_commit_max_groups(),
-    }

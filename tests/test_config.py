@@ -9,11 +9,10 @@ from agent_tools.infrastructure.config.manager import (
     get_commit_body_wrap_length,
     get_commit_grouping_signals,
     get_commit_max_groups,
-    get_commit_message_regex,
+    get_commit_subject_regex,
     get_commit_subject_max_length,
     get_diff_max_lines_per_file,
     get_diff_max_total_lines,
-    get_full_commit_rules,
     get_protected_branches,
     get_release_tag_regex,
     load_rules,
@@ -55,7 +54,7 @@ def test_load_rules_minimal_override(tmp_path, monkeypatch):
     # 1. 确认覆盖生效
     assert rules["git"]["commit"]["max_groups"] == 999
     # 2. 确认默认值透传生效 (来自内部 base rules.yaml)
-    assert rules["git"]["commit"]["subject_max_length"] == 72
+    assert rules["git"]["commit"]["subject_max_length"] == 85
     assert "main" in rules["git"]["safety"]["protected_branches"]
 
 
@@ -74,7 +73,6 @@ def test_validate_rules_additional_properties(caplog):
             },
             "commit": {
                 "allowed_types": [],
-                "message_regex": "",
                 "subject_max_length": 0,
                 "body_wrap_length": 0,
                 "grouping_signals": [],
@@ -103,7 +101,6 @@ def test_validate_rules_missing_required_properties(caplog):
             # 缺少 safety 字段
             "commit": {
                 "allowed_types": [],
-                "message_regex": "",
                 "subject_max_length": 0,
                 "body_wrap_length": 0,
                 "grouping_signals": [],
@@ -144,7 +141,7 @@ def test_all_getters_return_typed_values():
 
     assert isinstance(get_protected_branches(), list)
     assert isinstance(get_commit_allowed_types(), list)
-    assert isinstance(get_commit_message_regex(), str)
+    assert isinstance(get_commit_subject_regex(), str)
     assert isinstance(get_commit_subject_max_length(), int)
     assert isinstance(get_commit_body_wrap_length(), int)
     assert isinstance(get_commit_grouping_signals(), list)
@@ -153,4 +150,3 @@ def test_all_getters_return_typed_values():
     assert isinstance(get_diff_max_total_lines(), int)
     assert isinstance(get_allow_direct_actions_to_protected(), bool)
     assert isinstance(get_release_tag_regex(), str)
-    assert isinstance(get_full_commit_rules(), dict)

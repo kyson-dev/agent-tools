@@ -12,9 +12,7 @@ class Result:
     workflow: str = ""
     next_step: str = ""  # Semantic label for the next logical activity (e.g., 'resolve_conflicts')
     resume_point: str = ""  # Machine-readable string to pass back to the orchestrator (e.g., '--point current_rebase')
-    instruction: str = ""  # Specific, actionable instructions for the LLM agent
-    constraints: list[str] = field(default_factory=list)  # Explicit prohibitions for the LLM agent
-    strict_protocol: bool = True  # If True, the LLM must strictly follow the workflow and never bypass it
+    instruction: str = ""  # Specific, actionable instructions and explicit prohibitions for the LLM agent
     details: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:

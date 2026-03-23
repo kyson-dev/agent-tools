@@ -10,7 +10,10 @@ from agent_tools.infrastructure.clients.git import (
     run_git,
 )
 from agent_tools.infrastructure.clients.github.client import run_gh
-from agent_tools.infrastructure.config.manager import get_full_commit_rules
+from agent_tools.infrastructure.config.manager import (
+    get_commit_subject_regex,
+    get_commit_body_wrap_length,
+)
 
 logger = logging.getLogger(__name__)
 WORKFLOW = "gh_pr_merge"
@@ -166,20 +169,20 @@ def _handle_sense() -> Result:
         instruction=(
             "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
             "【ACTION】\n"
-            "1. Review PR metadata in details.\n"
-            "2. Synthesize a professional squash commit message following Conventional Commits.\n"
-            "3. Call 'gh_pr_merge_flow' with point='merge' and your 'override_json_str', formatted according to 'details.json_format'."
+            "1. Review PR metadata in `details.pr`.\n"
+            "2. Synthesize a professional squash commit message for `override_json_str` following the 'details.json_format' layout.\n"
+            "   - 'title': A professional squash commit subject.【STRICT】MUST satisfy 'details.subject_regex'.\n"
+            "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
+            "3. Call 'gh_pr_merge_flow' with point='merge' and your 'override_json_str'.\n"
         ),
-        constraints=[
-            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
-        ],
         details={
             "pr": pr_data,
             "json_format": {
                 "title": "feat(core): merge json format logic",
-                "body": "Detailed summary of PR changes...",
+                "body": "- Detailed summary of PR changes...",
             },
-            "commit_rules": get_full_commit_rules(),
+            "subject_regex": get_commit_subject_regex(),
+            "body_wrap_length": get_commit_body_wrap_length(),
         },
     )
 
@@ -198,11 +201,11 @@ def _handle_merge(override_json_str: str) -> Result:
         )
 
     # Validate regex
-    rules = get_full_commit_rules()
-    if body and title and not re.match(rules["message_regex"], title):
+    subject_regex = get_commit_subject_regex()
+    if not body or not title or not re.match(subject_regex, title):
         return Result(
             status="error",
-            message=f"Title '{title}' violates commit policy: {rules['message_regex']}",
+            message=f"Title '{title}' violates commit policy: {subject_regex}",
             workflow=WORKFLOW,
         )
 

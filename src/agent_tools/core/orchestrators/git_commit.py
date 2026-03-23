@@ -11,9 +11,11 @@ from agent_tools.infrastructure.clients.git import (
 )
 from agent_tools.infrastructure.config.manager import (
     get_allow_direct_actions_to_protected,
-    get_full_commit_rules,
+    get_commit_body_wrap_length,
+    get_commit_subject_regex,
     get_protected_branches,
-    get_separation_rules,
+    get_commit_grouping_signals,
+    get_commit_max_groups,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,18 +81,20 @@ def _handle_sense() -> Result:
         next_step="BUILD_COMMIT_PLAN",
         resume_point="commit",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止直接提交，禁止绕过分析步骤。\n"
             "【ACTION】\n"
             "1. Review 'staged' vs 'unstaged' files in details.\n"
-            "2. Decide which files should be committed together based on 'separation_rules'.\n"
-            "3. Draft commit messages following Conventional Commits.\n"
-            "4. Call 'git_commit_flow' with point='commit' and your 'plan_json_str', formatted according to 'details.json_format'.\n"
-            "【SAFETY】Check 'risk_files' carefully. NEVER commit secrets or large binaries accidentally."
+            "2. Group files into logical commits (max: 'details.max_groups') using these signals: 'details.grouping_signals'.\n"
+            "3. Synthesize 'plan_json_str' following the 'details.json_format' layout, using these field specs for each entry in 'commits':\n"
+            "   - 'files': Array of file paths to be committed together.\n"
+            "   - 'message': A structured Git message. \n"
+            "     * Subject (1st line): 【STRICT】MUST satisfy 'details.subject_regex'.\n"
+            "     * Detail body (Add a blank line after the subject): "
+            "        * The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
+            "4. Call 'git_commit_flow' with point='commit' and your 'plan_json_str'.\n"
+            "【CONSTRAINTS】\n"
+            "- Do NOT include files from 'risk_files' unless specifically authorized.\n"
         ),
-        constraints=[
-            "Do NOT commit files listed in 'risk_files' unless explicitly intended.",
-            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
-        ],
         details={
             "staged_files": staged,
             "unstaged_files": unstaged,
@@ -100,12 +104,14 @@ def _handle_sense() -> Result:
                 "commits": [
                     {
                         "files": ["file1.py", "file2.py"],
-                        "message": "feat(scope): short description\n\nDetailed body...",
+                        "message": "feat(scope): short description\n\n- Detailed body...",
                     }
                 ]
             },
-            "commit_rules": get_full_commit_rules(),
-            "separation_rules": get_separation_rules(),
+            "subject_regex": get_commit_subject_regex,
+            "body_wrap_length": get_commit_body_wrap_length(),
+            "grouping_signals": get_commit_grouping_signals(),
+            "max_groups": get_commit_max_groups(),
             "branch_info": asdict(get_branch_context()),
         },
     )

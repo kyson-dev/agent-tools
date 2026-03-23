@@ -12,7 +12,8 @@ from agent_tools.infrastructure.clients.git import (
 )
 
 from agent_tools.infrastructure.config.manager import (
-    get_full_commit_rules,
+    get_commit_subject_regex,
+    get_commit_body_wrap_length,
 )
 from agent_tools.infrastructure.clients.github.client import run_gh
 
@@ -114,13 +115,12 @@ def _handle_sense() -> Result:
             "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
             "【ACTION】\n"
             "1. Review 'commits' in details.\n"
-            "2. Synthesize a professional PR title (Conventional Commit style) and a structured markdown body.\n"
+            "2. Synthesize a professional PR title for `draft_json_str` following the 'details.json_format' layout.\n"
+            "   - 'title': A professional pr commit subject. 【STRICT】MUST satisfy 'details.subject_regex'.\n"
+            "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
             "3. Mention any relevant issue numbers if known.\n"
-            "4. Call 'gh_pr_create_flow' with point='create' and your 'draft_json_str', formatted according to 'details.json_format'."
+            "4. Call 'gh_pr_create_flow' with point='create' and your 'draft_json_str', formatted according to 'details.json_format'.\n"
         ),
-        constraints=[
-            "Each commit message MUST follow Conventional Commits and `commit_rules`.",
-        ],
         details={
             "owner": repo_info.owner,
             "repo": repo_info.repo,
@@ -131,7 +131,8 @@ def _handle_sense() -> Result:
                 "title": "feat(core): add JSON schema to results",
                 "body": "## Summary\n- Added json_format to handoff details.\n\n## Test Plan\n- Verified via pytest.",
             },
-            "commit_rules": get_full_commit_rules(),
+            "subject_regex": get_commit_subject_regex(),
+            "body_wrap_length": get_commit_body_wrap_length(),
         },
     )
 
