@@ -116,7 +116,7 @@ def _handle_sense() -> Result:
             "1. Review 'commits' in details.\n"
             "2. Synthesize a professional PR title for `draft_json_str` following the 'details.json_format' layout.\n"
             "   - 'title': A professional pr commit subject. 【STRICT】MUST satisfy 'details.subject_regex'.\n"
-            "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
+            "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'). It MUST include sections: ## Summary, ## Key Changes, and ## Impact. 【STRICT】single line max `details.body_wrap_length` chars.\n"
             "3. Mention any relevant issue numbers if known.\n"
             "4. Call 'gh_pr_create_flow' with point='create' and your 'draft' object.\n"
         ),
@@ -128,7 +128,7 @@ def _handle_sense() -> Result:
             "commits": [asdict(c) for c in commits],
             "json_format": {
                 "title": "feat(core): add JSON schema to results",
-                "body": "## Summary\n- Added json_format to handoff details.\n\n## Test Plan\n- Verified via pytest.",
+                "body": "## Summary\n- Brief explanation of the purpose.\n\n## Key Changes\n- Detail the specific code modifications.\n\n## Impact\n- Explain the consequence of this change.",
             },
             "subject_regex": get_commit_subject_regex(),
             "body_wrap_length": get_commit_body_wrap_length(),
