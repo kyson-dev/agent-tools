@@ -169,15 +169,15 @@ def _handle_push() -> Result:
     branch_info = get_branch_context(refresh=True)
     is_protected = _is_protected_branch(refresh=True)
 
-    if branch_info.ahead == 0:
-        return Result(
-            status="success",
-            message="Local branch is already up-to-date with remote.",
-            workflow=WORKFLOW,
-        )
-
     if branch_info.upstream:
-        # 这里保护分支本地领先不能提交，如果是相同的话提示成功，如果落后的话不应该存在返回错误吧
+        # 有远程且为最新
+        if branch_info.ahead == 0:
+            return Result(
+                status="success",
+                message="Local branch is already up-to-date with remote.",
+                workflow=WORKFLOW,
+            )
+        # 这里保护分支本地领先不能提交
         if is_protected:
             return Result(
                 status="error",
