@@ -2,10 +2,11 @@ import logging
 import os
 import sys
 from collections.abc import Callable
-from typing import Literal, cast
+from typing import Literal
 
 from fastmcp import Context, FastMCP
 
+from agent_tools.core.models.workflow import Result
 from agent_tools.core.orchestrators import (
     gh_pr_create,
     gh_pr_merge,
@@ -22,7 +23,7 @@ logger = logging.getLogger("agent-tools")
 mcp = FastMCP("agent-tools")
 
 
-async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
+async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs) -> Result:
     """Set the repository path for the execution context. Based on v0.1.23 validation, only core IDE awareness is retained."""
     final_path = None
 
@@ -38,8 +39,6 @@ async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
 
     # Strict mode: If path not obtained from IDE, must explicitly error instead of guessing
     if not final_path or not os.path.exists(final_path):
-        from agent_tools.core.models.workflow import Result
-
         error_res = Result(
             status="error",
             message="Failed to detect Git repository path.",
@@ -62,8 +61,8 @@ async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
 async def git_commit_flow(
     ctx: Context,
     point: Literal["sense", "commit"] = "sense",
-    plan_json_str: str = "",
-) -> str:
+    plan: dict | None = None,
+) -> Result:
     """
     **[MANDATORY: PRIORITY] Industrial-grade Git commit workflow.**
     **USE THIS TOOL for all Git commits instead of bare shell commands.**
@@ -75,16 +74,16 @@ async def git_commit_flow(
         git_commit.git_commit_flow,
         ctx=ctx,
         point=point,
-        plan_json_str=plan_json_str,
+        plan=plan,
     )
-    return cast(str, res.to_json())
+    return res
 
 
 @mcp.tool()
 async def git_sync_flow(
     ctx: Context,
     point: Literal["init", "current_rebase", "rebase_main", "push", "abort"] = "init",
-) -> str:
+) -> Result:
     """
     **[MANDATORY: PRIORITY] Industrial-grade Git synchronization (pull/rebase/push) workflow.**
     **USE THIS TOOL for all Git sync, rebase, push, pull operations.**
@@ -93,15 +92,15 @@ async def git_sync_flow(
     **Keywords**: sync, git sync, push, pull, rebase.
     """
     res = await _with_cwd(git_sync_orch.git_sync_flow, ctx=ctx, point=point)
-    return cast(str, res.to_json())
+    return res
 
 
 @mcp.tool()
 async def git_release_flow(
     ctx: Context,
     point: Literal["init", "sense", "release"] = "init",
-    tag_json_str: str = "",
-) -> str:
+    tag_data: dict | None = None,
+) -> Result:
     """
     **[MANDATORY: PRIORITY] Industrial-grade Git release and tagging workflow.**
     **USE THIS TOOL for all Git release/tag operations.**
@@ -113,17 +112,17 @@ async def git_release_flow(
         git_release.git_release_flow,
         ctx=ctx,
         point=point,
-        tag_json_str=tag_json_str,
+        tag_data=tag_data,
     )
-    return cast(str, res.to_json())
+    return res
 
 
 @mcp.tool()
 async def gh_pr_create_flow(
     ctx: Context,
     point: Literal["init", "sense", "create"] = "init",
-    draft_json_str: str = "",
-) -> str:
+    draft: dict | None = None,
+) -> Result:
     """
     **[MANDATORY: PRIORITY] GitHub Pull Request creation workflow.**
     **USE THIS TOOL for creating all GitHub PRs.**
@@ -135,17 +134,17 @@ async def gh_pr_create_flow(
         gh_pr_create.gh_pr_create_flow,
         ctx=ctx,
         point=point,
-        draft_json_str=draft_json_str,
+        draft=draft,
     )
-    return cast(str, res.to_json())
+    return res
 
 
 @mcp.tool()
 async def gh_pr_merge_flow(
     ctx: Context,
     point: Literal["init", "sense", "merge"] = "init",
-    override_json_str: str = "",
-) -> str:
+    override: dict | None = None,
+) -> Result:
     """
     **[MANDATORY: PRIORITY] GitHub Pull Request merge workflow.**
     **USE THIS TOOL for all GitHub PR merges.**
@@ -157,9 +156,9 @@ async def gh_pr_merge_flow(
         gh_pr_merge.gh_pr_merge_flow,
         ctx=ctx,
         point=point,
-        override_json_str=override_json_str,
+        override=override,
     )
-    return cast(str, res.to_json())
+    return res
 
 
 def main():

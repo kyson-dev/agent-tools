@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from dataclasses import asdict
@@ -126,7 +125,7 @@ def _handle_sense() -> Result:
             "3. If version bump is needed (【PAUSE】You MUST propose the new version and its rationale, then WAIT for USER approval before proceeding):\n"
             f"   - **IF PROTECTED (is_protected={is_protected})**: Create a task branch (e.g. release/vX.Y.Z), update version, commit via 'git_commit_flow', push, and then use 'gh_pr_create_flow' for a version PR. IMPORTANT: Wait for CI checks, then merge using 'gh_pr_merge_flow'.\n"
             f"   - **ELSE**: Update and commit directly to {branch_info.current_branch} using 'git_commit_flow'.\n"
-            "4. Finalize with 'git_release_flow' (point='release'), with its 'tag_json_str' following the 'details.json_format'.\n"
+            "4. Finalize with 'git_release_flow' (point='release'), with its 'tag_data' following the 'details.json_format'.\n"
             "   - 'name': The chosen version string. 【STRICT】MUST match 'details.tag_regex'.\n"
             "   - 'message': Categorized release notes. MUST follow the layout in 'details.json_format.message'.\n"
             "       * The field MUST include a header and categorized bullet points (Features, Bug Fixes, etc.).\n"
@@ -153,19 +152,10 @@ def _handle_sense() -> Result:
     )
 
 
-def _handle_release(tag_json_str: str) -> Result:
+def _handle_release(tag_data: dict) -> Result:
     """Stage 2: Physical tagging and atomic push."""
-    try:
-        data = json.loads(tag_json_str)
-        name = data.get("name")
-        message = data.get("message")
-    except json.JSONDecodeError:
-        return Result(
-            status="error",
-            message="Invalid JSON in tag_json_str.",
-            workflow=WORKFLOW,
-            instruction="Fix the JSON format and retry.",
-        )
+    name = tag_data.get("name")
+    message = tag_data.get("message")
 
     if not name or not message:
         return Result(status="error", message="Missing 'name' or 'message'.", workflow=WORKFLOW)
@@ -205,12 +195,12 @@ def _handle_release(tag_json_str: str) -> Result:
     )
 
 
-def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_json_str: str = "") -> Result:
+def git_release_flow(point: Literal["init", "sense", "release"] = "init", tag_data: dict | None = None) -> Result:
     """Industrial-grade git release flow orchestrator."""
     handlers = {
         "init": _handle_init,
         "sense": _handle_sense,
-        "release": lambda: _handle_release(tag_json_str),
+        "release": lambda: _handle_release(tag_data or {}),
     }
 
     try:

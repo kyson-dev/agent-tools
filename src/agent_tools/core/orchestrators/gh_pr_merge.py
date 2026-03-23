@@ -170,10 +170,10 @@ def _handle_sense() -> Result:
             "【STRICT PROTOCOL】You are in a controlled workflow. Skipping steps or executing unauthorized commands is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review PR metadata in `details.pr`.\n"
-            "2. Synthesize a professional squash commit message for `override_json_str` following the 'details.json_format' layout.\n"
+            "2. Synthesize a professional squash commit message for `override` following the 'details.json_format' layout.\n"
             "   - 'title': A professional squash commit subject.【STRICT】MUST satisfy 'details.subject_regex'.\n"
             "   - 'body': The detailed body should explain the 'why' and 'how' (not just 'what'), especially for complex logic changes. 【STRICT】single line max `details.body_wrap_length` chars.\n"
-            "3. Call 'gh_pr_merge_flow' with point='merge' and your 'override_json_str'.\n"
+            "3. Call 'gh_pr_merge_flow' with point='merge' and your 'override' object.\n"
         ),
         details={
             "pr": pr_data,
@@ -187,18 +187,10 @@ def _handle_sense() -> Result:
     )
 
 
-def _handle_merge(override_json_str: str) -> Result:
+def _handle_merge(override: dict) -> Result:
     """Stage 2: Execution and local cleanup."""
-    try:
-        data = json.loads(override_json_str)
-        title = data.get("title")
-        body = data.get("body")
-    except json.JSONDecodeError:
-        return Result(
-            status="error",
-            message="Invalid JSON in override_json_str.",
-            workflow=WORKFLOW,
-        )
+    title = override.get("title")
+    body = override.get("body")
 
     # Validate regex
     subject_regex = get_commit_subject_regex()
@@ -270,12 +262,12 @@ def _handle_merge(override_json_str: str) -> Result:
     return Result(status="success", message=cleanup_msg, workflow=WORKFLOW)
 
 
-def gh_pr_merge_flow(point: Literal["init", "sense", "merge"] = "init", override_json_str: str = "") -> Result:
+def gh_pr_merge_flow(point: Literal["init", "sense", "merge"] = "init", override: dict | None = None) -> Result:
     """Industrial-grade GitHub PR merging flow orchestrator."""
     handlers = {
         "init": _handle_init,
         "sense": _handle_sense,
-        "merge": lambda: _handle_merge(override_json_str),
+        "merge": lambda: _handle_merge(override or {}),
     }
 
     try:
