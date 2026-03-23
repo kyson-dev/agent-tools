@@ -112,7 +112,7 @@ def _handle_sense() -> Result:
         next_step="SYNTHESIZE_PR_DESCRIPTION",
         resume_point="create",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Skipping steps or executing unauthorized commands is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review 'commits' in details.\n"
             "2. Synthesize a professional PR title for `draft_json_str` following the 'details.json_format' layout.\n"

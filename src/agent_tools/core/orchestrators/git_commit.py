@@ -1,6 +1,5 @@
 import json
 import logging
-from dataclasses import asdict
 from typing import Literal
 
 from agent_tools.core.models.workflow import Result
@@ -16,6 +15,7 @@ from agent_tools.infrastructure.config.manager import (
     get_protected_branches,
     get_commit_grouping_signals,
     get_commit_max_groups,
+    get_sensitive_patterns,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def _handle_sense() -> Result:
     diff_info = get_diff_summary()
 
     # Check for sensitive files (e.g., .env, secrets)
-    sensitive_patterns = [".env", "key", "secret", "token", "password"]
+    sensitive_patterns = get_sensitive_patterns()
     risk_files = [
         f.filepath for f in diff_info.changed_files if any(p in f.filepath.lower() for p in sensitive_patterns)
     ]
@@ -81,7 +81,7 @@ def _handle_sense() -> Result:
         next_step="BUILD_COMMIT_PLAN",
         resume_point="commit",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止直接提交，禁止绕过分析步骤。\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Direct commits or bypassing analysis is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review 'staged' vs 'unstaged' files in details.\n"
             "2. Group files into logical commits (max: 'details.max_groups') using these signals: 'details.grouping_signals'.\n"
@@ -108,11 +108,10 @@ def _handle_sense() -> Result:
                     }
                 ]
             },
-            "subject_regex": get_commit_subject_regex,
+            "subject_regex": get_commit_subject_regex(),
             "body_wrap_length": get_commit_body_wrap_length(),
             "grouping_signals": get_commit_grouping_signals(),
             "max_groups": get_commit_max_groups(),
-            "branch_info": asdict(get_branch_context()),
         },
     )
 

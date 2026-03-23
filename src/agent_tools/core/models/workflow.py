@@ -17,9 +17,13 @@ class Result:
 
     def to_json(self) -> str:
         """Serialize result to JSON string."""
-        # We no longer auto-prepend headers here to avoid redundancy.
-        # Orchestrators are responsible for high-quality instructions.
-        return json.dumps(asdict(self), indent=2, ensure_ascii=False)
+
+        def serialize(obj):
+            if callable(obj):
+                return f"<function {obj.__name__}>"
+            return str(obj)
+
+        return json.dumps(asdict(self), default=serialize, indent=2, ensure_ascii=False)
 
     @property
     def ok(self) -> bool:

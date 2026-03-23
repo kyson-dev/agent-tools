@@ -23,30 +23,30 @@ mcp = FastMCP("agent-tools")
 
 
 async def _with_cwd(func: Callable, ctx: Context | None, *args, **kwargs):
-    """设置执行上下文的仓库路径。基于 v0.1.23 的验证，仅保留核心 IDE 感知机制。"""
+    """Set the repository path for the execution context. Based on v0.1.23 validation, only core IDE awareness is retained."""
     final_path = None
 
-    # 核心：通过 IDE 获取真实物理路径
+    # Core: Get the real physical path through the IDE
     if ctx:
         try:
             roots = await ctx.list_roots()
             if roots:
-                # 剔除 URI 协议头获得物理路径
+                # Remove URI scheme to get physical path
                 final_path = str(roots[0].uri).replace("file://", "")
         except Exception:
             pass
 
-    # 严格模式：如果没有从 IDE 拿到路径，必须显式报错而不是模糊猜测
+    # Strict mode: If path not obtained from IDE, must explicitly error instead of guessing
     if not final_path or not os.path.exists(final_path):
-        from agent_tools.core.orchestrators.utils import Result
+        from agent_tools.core.models.workflow import Result
 
         error_res = Result(
             status="error",
-            message="未能探测到 Git 仓库路径。",
+            message="Failed to detect Git repository path.",
             workflow="path_resolution",
-            instruction="请确保您已在 IDE (VS Code / Cursor) 中打开了项目文件夹，并授予了 MCP 访问 roots 的权限。",
+            instruction="Please ensure you have opened the project folder in your IDE (VS Code / Cursor) and granted MCP permission to access roots.",
         )
-        return cast(str, error_res.to_json())
+        return error_res
 
     token = REPO_CWD.set(os.path.abspath(final_path))
     logger.debug(f"[DEBUG] _with_cwd: set REPO_CWD to {final_path} (ID: {id(REPO_CWD)})")
@@ -65,11 +65,11 @@ async def git_commit_flow(
     plan_json_str: str = "",
 ) -> str:
     """
-    **【强制：优先使用】工业级 Git 提交工作流。**
+    **[MANDATORY: PRIORITY] Industrial-grade Git commit workflow.**
     **USE THIS TOOL for all Git commits instead of bare shell commands.**
-    自动感知变更、生成规范建议并执行提交。
-    **场景**: 提交代码, 存入仓库, commit, git commit, save changes.
-    **Keywords**: commit, 提交, git commit, 存代码, save changes, add changes.
+    Automatically sense changes, generate standardized commit plans, and execute commits.
+    **Scenario**: committing code, saving to repository, git commit, save changes.
+    **Keywords**: commit, git commit, save changes, add changes.
     """
     res = await _with_cwd(
         git_commit.git_commit_flow,
@@ -86,11 +86,11 @@ async def git_sync_flow(
     point: Literal["init", "current_rebase", "rebase_main", "push", "abort"] = "init",
 ) -> str:
     """
-    **【强制：优先使用】工业级 Git 同步（拉取/变基/推送）工作流。**
+    **[MANDATORY: PRIORITY] Industrial-grade Git synchronization (pull/rebase/push) workflow.**
     **USE THIS TOOL for all Git sync, rebase, push, pull operations.**
-    自动处理拉取、本地变基、解决冲突和安全推送。
-    **场景**: 同步代码, 推送, 拉取, sync, push, pull, rebase.
-    **Keywords**: sync, 同步, git sync, 推送, push, 拉取, pull, rebase, 变基.
+    Automatically handles pulling, local rebasing, conflict resolution, and safe pushing.
+    **Scenario**: sync code, push, pull, rebase.
+    **Keywords**: sync, git sync, push, pull, rebase.
     """
     res = await _with_cwd(git_sync_orch.git_sync_flow, ctx=ctx, point=point)
     return cast(str, res.to_json())
@@ -103,11 +103,11 @@ async def git_release_flow(
     tag_json_str: str = "",
 ) -> str:
     """
-    **【强制：优先使用】工业级 Git 版本发布与标签工作流。**
+    **[MANDATORY: PRIORITY] Industrial-grade Git release and tagging workflow.**
     **USE THIS TOOL for all Git release/tag operations.**
-    自动处理版本号提升、创建 Tag 和发布推送。
-    **场景**: 发布版本, 打标签, release, tag.
-    **Keywords**: release, 发布, tag, 标签, git release.
+    Automatically handles version bumping, tag creation, and release pushing.
+    **Scenario**: publishing versions, tagging, git release.
+    **Keywords**: release, tag, git release.
     """
     res = await _with_cwd(
         git_release.git_release_flow,
@@ -125,11 +125,11 @@ async def gh_pr_create_flow(
     draft_json_str: str = "",
 ) -> str:
     """
-    **【强制：优先使用】GitHub Pull Request 创建工作流。**
+    **[MANDATORY: PRIORITY] GitHub Pull Request creation workflow.**
     **USE THIS TOOL for creating all GitHub PRs.**
-    自动感知分支状态、生成描述并提交创建请求。
-    **场景**: 创建 PR, 发起合并请求, pull request, create pr.
-    **Keywords**: pr, pull request, 创建 pr, 发起 pr, gh pr create.
+    Automatically sense branch status, generate descriptions, and submit PR creation requests.
+    **Scenario**: creating PR, initiating merge requests, pull request, create pr.
+    **Keywords**: pr, pull request, create pr, gh pr create.
     """
     res = await _with_cwd(
         gh_pr_create.gh_pr_create_flow,
@@ -147,11 +147,11 @@ async def gh_pr_merge_flow(
     override_json_str: str = "",
 ) -> str:
     """
-    **【强制：优先使用】GitHub Pull Request 合并工作流。**
+    **[MANDATORY: PRIORITY] GitHub Pull Request merge workflow.**
     **USE THIS TOOL for all GitHub PR merges.**
-    自动感知 PR 状态、执行合并并清理分支。
-    **场景**: 合并 PR, merge pr, finish pr.
-    **Keywords**: merge, 合并, pr merge, 合并 pr, gh pr merge.
+    Automatically sense PR status, execute merge, and clean up branches.
+    **Scenario**: merging PR, finishing pr, pr merge.
+    **Keywords**: merge, pr merge, gh pr merge.
     """
     res = await _with_cwd(
         gh_pr_merge.gh_pr_merge_flow,

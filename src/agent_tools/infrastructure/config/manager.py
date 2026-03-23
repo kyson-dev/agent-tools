@@ -172,6 +172,11 @@ def get_allow_direct_actions_to_protected() -> bool:
     return cast(bool, rules["git"]["safety"]["allow_direct_actions_to_protected"])
 
 
+def get_sensitive_patterns() -> list[str]:
+    rules = load_rules()
+    return cast(list[str], rules["git"]["safety"]["sensitive_patterns"])
+
+
 def get_release_tag_regex() -> str:
     rules = load_rules()
     return cast(str, rules["git"]["release"]["tag_regex"])

@@ -167,7 +167,7 @@ def _handle_sense() -> Result:
         next_step="SYNTHESIZE_SQUASH_MESSAGE",
         resume_point="merge",
         instruction=(
-            "【STRICT PROTOCOL / 严格协议】您当前处于受控工作流中。禁止跳过步骤、禁止执行任何未授权的裸命令。\n"
+            "【STRICT PROTOCOL】You are in a controlled workflow. Skipping steps or executing unauthorized commands is strictly prohibited.\n"
             "【ACTION】\n"
             "1. Review PR metadata in `details.pr`.\n"
             "2. Synthesize a professional squash commit message for `override_json_str` following the 'details.json_format' layout.\n"
